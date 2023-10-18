@@ -1,0 +1,3 @@
+[submodule "SimulEval"]
+	path = SimulEval
+	url = https://github.com/facebookresearch/SimulEval.git
