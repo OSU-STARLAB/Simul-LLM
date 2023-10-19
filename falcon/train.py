@@ -74,7 +74,7 @@ tokenizer.pad_token = tokenizer.eos_token
 
 
 ### set up dataset and SFTTrainer, which should handle LoRA adapters
-dataset = load_dataset(training_set, split="train[0:100000]")
+dataset = load_dataset(training_set, split="train")
 
 ### training object config
 output_dir = "./model"
@@ -93,7 +93,7 @@ lr_scheduler_type = "constant"
 # temporary options
 save_steps = 100
 logging_steps = 10
-max_steps = 1260
+max_steps = 100000
 
 print(f"Beginning process of starting up training...")
 print(tokenizer)
