@@ -8,57 +8,42 @@ from datasets import load_dataset
 from trl import SFTTrainer
 from transformers import TrainingArguments
 
-### Training configuration variables
+import argparse
+from common_args import add_args
 
-# model_name = 'tiiuae/falcon-7b'
-model_name = 'ybelkada/falcon-7b-sharded-bf16'
-training_set = 'maxolotl/falcon_w3_en_es_v2'
-
-lora_alpha = 16
-lora_dropout = 0.1
-lora_r = 64
-
-use_4bit = True  # Activate 4bit precision base model loading, does NOT work in Google Colab
-use_nested_quant = False  # Activate nested quantization for 4bit base models
-bnb_4bit_compute_dtype = 'float16'  # Compute dtype for 4bit base models
-bnb_4bit_quant_type = 'nf4'  # Quantization type fp4 or nf4
-num_train_epochs = 1  # The number of training epochs for the reward model
-fp16 = False  # Enables fp16 training
-bf16 = False  # Enables bf16 training
-packing = False  # Use packing dataset creating
-group_by_length = True  # Group sequences into batches with same length. Saves memory and speeds up training considerably
+# quick argparse
+parser = argparse.ArgumentParser()
+add_args(parser)
+args = parser.parse_args()
 
 
 ### Create and prepare model
+model_name = 'ybelkada/falcon-7b-sharded-bf16'
+training_set = 'maxolotl/falcon_w3_en_es_v2'
 
-compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
-
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=use_4bit,
-    bnb_4bit_quant_type=bnb_4bit_quant_type,
-    bnb_4bit_compute_dtype=compute_dtype,
-    bnb_4bit_use_double_quant=use_nested_quant,
-)
-
-if compute_dtype == torch.float16 and use_4bit:
+compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
+if compute_dtype == torch.float16 and args.use_4bit:
     major, _ = torch.cuda.get_device_capability()
     if major >= 8:
         print("=" * 80)
         print("Your GPU supports bfloat16, you can accelerate training with bf16")
         print("=" * 80)
 
-#device_map = {"": 0}
-device_map = "auto"
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=args.use_4bit,
+    bnb_4bit_quant_type=args.bnb_4bit_quant_type,
+    bnb_4bit_compute_dtype=compute_dtype,
+    bnb_4bit_use_double_quant=args.use_nested_quant,
+)
 
-#model = AutoModelForCausalLM.from_pretrained(
 model = FalconForCausalLM.from_pretrained(
-    model_name, quantization_config=bnb_config, device_map=device_map, trust_remote_code=True
+    model_name, quantization_config=bnb_config, device_map="auto", trust_remote_code=True
 )
 
 peft_config = LoraConfig(
-    lora_alpha=lora_alpha,
-    lora_dropout=lora_dropout,
-    r=lora_r,
+    lora_alpha=args.lora_alpha,
+    lora_dropout=args.lora_dropout,
+    r=args.lora_r,
     bias="none",
     task_type="CAUSAL_LM",
     target_modules=[
@@ -76,43 +61,22 @@ tokenizer.pad_token = tokenizer.eos_token
 ### set up dataset and SFTTrainer, which should handle LoRA adapters
 dataset = load_dataset(training_set, split="train")
 
-### training object config
-output_dir = "./model"
-per_device_train_batch_size = 18
-gradient_accumulation_steps = 4
-gradient_checkpointing = True  # Enables gradient checkpointing
-optim = "paged_adamw_32bit"
-#save_steps = 10000
-#logging_steps = 500
-learning_rate = 2e-4
-max_grad_norm = 0.3
-#max_steps = 1000000
-warmup_ratio = 0.03
-lr_scheduler_type = "constant"
-
-# temporary options
-save_steps = 100
-logging_steps = 10
-max_steps = 100000
-
-print(f"Beginning process of starting up training...")
-print(tokenizer)
-
+### training object config, looks like gradient checkpointing is currently broken
 training_arguments = TrainingArguments(
-    output_dir=output_dir,
-    per_device_train_batch_size=per_device_train_batch_size,
-    gradient_accumulation_steps=gradient_accumulation_steps,
-    gradient_checkpointing=gradient_checkpointing,
-    optim=optim,
-    save_steps=save_steps,
-    logging_steps=logging_steps,
-    max_steps=max_steps,
-    learning_rate=learning_rate,
-    max_grad_norm=max_grad_norm,
-    warmup_ratio=warmup_ratio,
-    lr_scheduler_type=lr_scheduler_type,
+    output_dir=args.output_dir,
+    per_device_train_batch_size=args.bsz,
+    gradient_accumulation_steps=args.update_freq,
+    optim=args.optim,
+    save_steps=args.save_interval,
+    logging_steps=args.log_interval,
+    max_steps=args.max_updates,
+    learning_rate=args.lr,
+    max_grad_norm=args.max_grad_norm,
+    warmup_ratio=args.warmup_ratio,
+    lr_scheduler_type=args.lr_scheduler,
     fp16=True,
     group_by_length=True,
+    #gradient_checkpointing=args.gradient_checkpointing,
 )
 
 trainer = SFTTrainer(
@@ -120,12 +84,13 @@ trainer = SFTTrainer(
     train_dataset=dataset,
     peft_config=peft_config,
     dataset_text_field="text",
-    max_seq_length=1024,
+    max_seq_length=args.max_seq_length,
     tokenizer=tokenizer,
     args=training_arguments,
 )
 
-### normal floating point for normalization?
+### normalization automatically cast to float16,
+### we can restore precision at very little cost
 for name, module in trainer.model.named_modules():
     if "norm" in name:
         module = module.to(torch.float32)
