@@ -86,7 +86,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
             outputs = self.model.generate(
                 input_ids = encoding.input_ids,
                 attention_mask = encoding.attention_mask,
-                max_length=128
+                max_length=1024
             )
 
         all_output = self.tokenizer.decode(outputs[0], skip_special_tokens=True)

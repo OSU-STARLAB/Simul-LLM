@@ -19,13 +19,17 @@
 export HUGGINGFACE_HUB_CACHE="/nfs/hpc/share/agostinv/llama_simulst/falcon/.cache"
 export HF_DATASETS_CACHE="/nfs/hpc/share/agostinv/llama_simulst/falcon/.cache/datasets"
 
-source /nfs/hpc/share/agostinv/llama_simulst_venv/bin/activate
-cd /nfs/hpc/share/agostinv/llama_simulst/SimulEval
+export ROOT="/nfs/hpc/share/agostinv/llm-simultaneous-translation/falcon"
+export VENV_ROOT="/nfs/hpc/share/agostinv/llama_simulst_venv"
+export SIMUL_ROOT="/nfs/hpc/share/agostinv/llm-simultaneous-translation/SimulEval"
+
+source ${VENV_ROOT}/bin/activate
+cd ${SIMUL_ROOT}
 
 simuleval \
     --agent /nfs/hpc/share/agostinv/llama_simulst/falcon/falcon_simulmt_agent.py \
-    --source /nfs/hpc/share/starlab/victor/en-es/data/tst-COMMON/txt/tst-COMMON-01-fixed.en \
-    --target /nfs/hpc/share/starlab/victor/en-es/data/tst-COMMON/txt/tst-COMMON-01-fixed.es\
+    --source /nfs/hpc/share/starlab/victor/en-es/data/tst-COMMON/txt/tst-COMMON-fixed-reduced.en \
+    --target /nfs/hpc/share/starlab/victor/en-es/data/tst-COMMON/txt/tst-COMMON-fixed-reduced.es \
     --model-path /nfs/hpc/share/agostinv/llama_simulst/falcon/model/checkpoint-1000 \
     --output output_falcon_waitk_3_basic_test \
     --waitk 3 \
