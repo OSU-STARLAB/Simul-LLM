@@ -47,9 +47,6 @@ class FalconWaitkTextAgent(TextToTextAgent):
     def policy(self):
         lagging = len(self.states.source) - len(self.states.target)
 
-        #print(self.states.source)
-        #print(self.states.target)
-
         if lagging >= self.waitk or self.states.source_finished:
             current_source = " ".join(self.states.source)
             current_target = " ".join(self.states.target)
@@ -57,7 +54,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
             if self.decoding_strategy == "greedy":
                 model_output = self.make_inference_translation(current_source, current_target)
                 prediction = self.find_string_between_symbols(model_output, '{', '}')
-            
+            else:
+                assert NotImplementedError
+
             if lagging <= 1:
                 print(f"Finished sentence: \n\tSource: {current_source}\n\t Target: {current_target + ' ' + prediction}", flush=True)
             
