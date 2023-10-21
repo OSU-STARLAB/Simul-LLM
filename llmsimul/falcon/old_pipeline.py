@@ -1,3 +1,7 @@
+'''
+Old fine-tuning pipeline. Will be removed in a future commit.
+'''
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 

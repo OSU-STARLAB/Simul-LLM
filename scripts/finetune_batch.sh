@@ -6,27 +6,29 @@
 #SBATCH -c 4
 #SBATCH -p gpu
 #SBATCH --gres=gpu:4
-##SBATCH -p share,gpu
-##SBATCH --gres=gpu:1
 #SBATCH --constraint="a40|rtx8000"
 #SBATCH --mem=120G
 
-#SBATCH -o logs/simulmt/falcon_1_epoch_finetune.log
+#SBATCH -o logs/finetune/falcon_1_epoch_finetune.log
 
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=agostinv@oregonstate.edu
+#SBATCH --mail-user=<some_email_you_would_use>
 
 #pip --cache-dir .cache
-export HUGGINGFACE_HUB_CACHE=".cache"
-export HF_DATASETS_CACHE=".cache/datasets"
-
-export ROOT="/nfs/hpc/share/agostinv/llm-workspace/falcon"
-export VENV_ROOT="/nfs/hpc/share/agostinv/llama_simulst_venv"
+export ROOT="<PATH_TO_REPO_ROOT>"
+export VENV_ROOT="<PATH_TO_VIRTUAL_ENV>"
 
 source ${VENV_ROOT}/bin/activate
 cd ${ROOT}
 
-python train.py \
+export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
+export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
+
+export PYTHONPATH="${PYHTONPATH}:."
+
+python cli/finetune.py \
+    --model ybelkada/falcon-7b-sharded-bf16 \
+    --training-set maxolotl/falcon_w3_en_es_v2 \
     --lora-alpha 16 --lora-dropout 0.1 --lora-r 64 \
     --use-4bit --bnb-4bit-compute-dtype float16 --bnb-4bit-quant-type nf4 \
     --bsz 4 --update-freq 4 \
