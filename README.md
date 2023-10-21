@@ -14,7 +14,21 @@ Example scripts are provided via scripts/ with default arguments being set-up fo
 
 ---
 
-TODO: 
+### Extending to Other LLMs
+
+The structure of this repository is meant to be friendly to attempts to extend its functionality to new LLMs. The following general steps can be executed to enable fine-tuning and evaluation via SimulEval:
+
+1. Add some parsing infrastructure to cli/finetune.py.
+
+2. Create a SFTTrainer wrapper for a new LLM by inheriting from the general wrapper found in llmsimul/trainer_wrapper.py and implementing the remaining functions.
+
+3. Create an evaluation agent for SimulEval, copying typical text-to-text agent structure.
+
+When in doubt, those attempting to extend this repo's functionality to new LLMs are encouraged to refer to llmsimul/falcon/ as a reference point.
+
+---
+
+### TODO: 
 
 1. Finish validating DDP capabilities for non-sharded LLMs via Accelerate.
 
