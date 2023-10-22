@@ -32,10 +32,8 @@ When in doubt, those attempting to extend this repo's functionality to new LLMs 
 
 1. Finish validating DDP capabilities for non-sharded LLMs via Accelerate.
 
-2. Finish data collation setup to speed up fine-tuning. Includes custom formatting functions for each LLM for increased extendability.
+2. Add easily replicable preprocessing pipeline.
 
-3. Add easily replicable preprocessing pipeline.
+3. Explore customized attention masks per sample for better simultaneous training flow.
 
-4. Explore customized attention masks per sample for better simultaneous training flow.
-
-5. Extend to LLaMa, Mistral, etc.
+4. Extend to LLaMa, Mistral, etc.
