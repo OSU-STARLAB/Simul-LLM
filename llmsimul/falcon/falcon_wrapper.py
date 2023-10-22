@@ -5,7 +5,7 @@ from transformers import FalconForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
-from trl import SFTTrainer
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
 import argparse
@@ -44,22 +44,50 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
 
+    '''
+    The direct SFTTrainer setup is relatively straightforward, but it's worth mentioning
+    why the data collator is included. Without it, the entire input is assumed to be 
+    what the model should attempt to predict. By providing the response template, the 
+    collator will ensure that the model ignores all previous indices for the query during
+    self-attention. This should result in some throughput increases.
+    '''
+
     def setup_trainer(self, args):
         self.load_dataset()
 
+        response_template = "<assistant>: "
+        collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
+
         self.trainer = SFTTrainer(
             model=self.model,
-            train_dataset=self.dataset,
+            train_dataset=self.training,
+            eval_dataset=self.validation,
             peft_config=self.peft_config,
-            dataset_text_field="text",
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
+            data_collator=collator,
+            formatting_func=self.formatting_func,
             args=self.training_arguments,
         )
-    
-    
-    def formatting_func(self):
-        assert NotImplementedError
+   
+
+    '''
+    Formatting function takes care of prompt specification for a given LLM and allows the data
+    collator to handle our data better. Example sentence at start of wait-3 translation:
+
+       <human>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
+       what's the next translated word? <assistant>: {Les}
+
+    '''
+
+    def formatting_func(self, example):
+        output_texts = []
+        for i in range(len(example['current_source'])):
+            text = f"<human>: Given the English sentence {{{example['current_source'][i]}}} \
+                    and the current translation in Spanish {{{example['current_target'][i]}}}, \
+                    what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+            output_texts.append(text)
+        return output_texts 
 
 
     def train(self):

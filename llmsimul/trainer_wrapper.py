@@ -5,11 +5,13 @@ from transformers import FalconForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
-from trl import SFTTrainer
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
 import argparse
 from argparse import ArgumentParser, Namespace
+
+
 
 '''
 The below class serves as a general wrapper to SFTTrainer for training simultaneous
@@ -81,6 +83,7 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--warmup-ratio", type=float, default=0.03)
         parser.add_argument("--save-interval", type=int, default=500)
         parser.add_argument("--log-interval", type=int, default=100)
+        parser.add_argument("--eval-interval", type=int, default=500)
         parser.add_argument("--max-updates", type=int, default=100000)
         parser.add_argument("--max-seq-length", type=int, default=1024)
 
@@ -118,6 +121,13 @@ class LLMSimulSFTTrainerWrapper:
         )
 
 
+    '''
+    Annoying to change evaluation strategy, but if an epoch-based one is desired, 
+    this function should be overridden in the child wrapper.
+
+    Gradient checkpointing is bugged for Falcon-based models. This function should
+    be overridden if you want to enable it.
+    '''
     def setup_training_arguments(self, args):
         self.training_arguments = TrainingArguments(
             output_dir=args.output_dir,
@@ -131,6 +141,8 @@ class LLMSimulSFTTrainerWrapper:
             max_grad_norm=args.max_grad_norm,
             warmup_ratio=args.warmup_ratio,
             lr_scheduler_type=args.lr_scheduler,
+            evaluation_strategy="steps",
+            eval_steps=args.eval_interval,
             fp16=True,
             group_by_length=True,
             #gradient_checkpointing=args.gradient_checkpointing,
@@ -138,18 +150,19 @@ class LLMSimulSFTTrainerWrapper:
 
 
     def load_dataset(self):
-        self.dataset = load_dataset(self.training_set, split="train")
+        self.training = load_dataset(self.training_set, split="train")
+        self.validation = load_dataset(self.training_set, split="validation")
     
 
     def setup_model_and_tokenizer(self, args):
         raise NotImplementedError
 
     
-    def setup_trainer(self):
+    def setup_trainer(self, args):
         raise NotImplementedError
     
     
-    def formatting_func(self):
+    def formatting_func(self, example):
         raise NotImplementedError
 
 
