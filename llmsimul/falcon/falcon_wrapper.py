@@ -83,9 +83,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def formatting_func(self, example):
         output_texts = []
         for i in range(len(example['current_source'])):
-            text = f"<human>: Given the English sentence {{{example['current_source'][i]}}} \
-                    and the current translation in Spanish {{{example['current_target'][i]}}}, \
-                    what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+            text = f"<human>: Given the English sentence {{{example['current_source'][i]}}} and the current translation in Spanish {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
             output_texts.append(text)
         return output_texts 
 
