@@ -23,7 +23,7 @@ cd ${ROOT}
 export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
 export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
 
-export PYTHONPATH="${PYHTONPATH}:."
+export PYTHONPATH="${PYHTONPATH}:${ROOT}"
 
 cd SimulEval
 
