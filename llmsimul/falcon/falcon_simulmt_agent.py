@@ -10,6 +10,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import FalconForCausalLM
 from peft import LoraConfig, AutoPeftModelForCausalLM
 
+from transformers.generation.stopping_criteria import StoppingCriteria
+from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriteria
+
 @entrypoint
 class FalconWaitkTextAgent(TextToTextAgent):
     def __init__(self, args: Namespace):
@@ -34,8 +37,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
         )
         self.model.load_adapter(args.model_path)
         self.tokenizer = AutoTokenizer.from_pretrained('ybelkada/falcon-7b-sharded-bf16', trust_remote_code=True)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.model.resize_token_embeddings(len(self.tokenizer))
+        self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to('cuda')
         
     @staticmethod
     def add_args(parser: ArgumentParser):
@@ -55,20 +59,28 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 model_output = self.make_inference_translation(current_source, current_target)
                 prediction = self.find_string_between_symbols(model_output, '{', '}')
             else:
-                assert NotImplementedError
+                raise NotImplementedError
 
-            if lagging <= 1:
+
+            prediction_send = prediction
+            if prediction == "<|endoftext|>":
+                prediction_send = ""
+           
+
+            if prediction == "<|endoftext|>" or lagging < -5:
                 print(f"Finished sentence: \n\tSource: {current_source}\n\t Target: {current_target + ' ' + prediction}", flush=True)
-            
+
+
             # will need to modify finish condition at a later date
-            return WriteAction(prediction, finished=(lagging <= 1))
+            return WriteAction(prediction_send, finished=(prediction == "<|endoftext|>" or lagging < -5))
         else:
             return ReadAction()
 
 
-    """ 
+
+    ''' 
     The following functions are entirely the design of Max Wild and detail translation wrappers for Falcon 
-    """
+    '''
     def make_inference_translation(self, source, current_translation):
         """
         Call upon a specific model to do a translation request, the model input
@@ -78,22 +90,35 @@ class FalconWaitkTextAgent(TextToTextAgent):
         if current_translation is None:
             current_translation = ''
 
-        input_prompt = f'<human>: Given the English sentence {{{source}}}, and the current translation in Spanish {{{current_translation}}}, what\'s the next translated word? If the translated sentence has ended, output an appropriate punctuation. <assistant>:'
+        input_prompt = f'<human>: Given the English sentence {{{source}}}, and the current translation in Spanish {{{current_translation}}}, what\'s the next translated word? <assistant>: '
 
+        # 8 max tokens seems to be a pretty safe value to catch multi-token words
+        # reducing this results in possibly losing tokens, custom stopping criteria
+        # presents a nice alternative that should be efficient
         encoding = self.tokenizer(input_prompt, return_tensors="pt")
+        stopping_criteria = StopTokenAndMaxLengthCriteria(
+            start_length=encoding.input_ids.shape[-1],
+            max_new_tokens=15,
+            eoseq_ids=self.eoseq_ids,
+        )
+
         with torch.inference_mode():
             outputs = self.model.generate(
-                input_ids = encoding.input_ids,
+                input_ids = encoding.input_ids.to('cuda'),
                 attention_mask = encoding.attention_mask,
-                max_length=1024
+                use_cache=True,
+                stopping_criteria=[stopping_criteria],
+                max_new_tokens=15,
+                pad_token_id=self.tokenizer.pad_token_id,
             )
 
-        all_output = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        all_output = self.tokenizer.decode(outputs[0])
 
         # Slice the returned array to remove the input that we fed the model
         return all_output[len(input_prompt) - 1:]
 
 
+    # may not need to call this, 99% of the time the first and last token will be '{' and '}'
     def find_string_between_symbols(self, source, start_symbol='{', end_symbol='}'):
         """
         Returns the content between the first instance of the start symbol and

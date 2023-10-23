@@ -41,8 +41,9 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             self.model_name,
             trust_remove_code=True,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.model.resize_token_embeddings(len(self.tokenizer))
+ 
 
     '''
     The direct SFTTrainer setup is relatively straightforward, but it's worth mentioning

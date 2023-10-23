@@ -38,7 +38,7 @@ def model_parser():
         type=str,
         default=None,
         required=True,
-        help="Path of model that you'd like to finetune, stored on the Hugginface Hub.",
+        help="Path of model that you'd like to finetune, stored on the Huggingface Hub.",
     )
     return parser
 

@@ -143,15 +143,15 @@ class LLMSimulSFTTrainerWrapper:
             lr_scheduler_type=args.lr_scheduler,
             evaluation_strategy="steps",
             eval_steps=args.eval_interval,
-            fp16=True,
             group_by_length=True,
+            fp16=False,
             #gradient_checkpointing=args.gradient_checkpointing,
         )
 
 
     def load_dataset(self):
-        self.training = load_dataset(self.training_set, split="train")
-        self.validation = load_dataset(self.training_set, split="validation")
+        self.training = load_dataset(self.training_set, split="train[0:100]")
+        self.validation = load_dataset(self.training_set, split="validation[0:100]")
     
 
     def setup_model_and_tokenizer(self, args):
