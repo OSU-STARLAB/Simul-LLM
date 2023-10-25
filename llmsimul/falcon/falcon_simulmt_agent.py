@@ -19,34 +19,61 @@ class FalconWaitkTextAgent(TextToTextAgent):
         super().__init__(args)
         self.waitk = args.waitk
         self.decoding_strategy = args.decoding_strategy
-       
-        # assuming PEFT-based model for now, since full-model fine-tuning is much rarer for low resource platforms
-        #self.model = AutoPeftModelForCausalLM.from_pretrained(args.model_path, device_map="auto", trust_remote_code=True)
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype="float16",
-            bnb_4bit_use_double_quant=False,
-        )
+        self.device = args.device
+        self.quantize_4bits = args.quantize_4bits
 
-        self.model = FalconForCausalLM.from_pretrained(
+        if args.compute_dtype == "float32":
+            self.compute_dtype = torch.float32
+        elif args.compute_dtype == "float16":
+            self.compute_dtype = torch.float16
+        elif args.compute_dtype == "bfloat16":
+            self.compute_dtype = torch.bfloat16
+        elif args.compute_dtype == "float8":
+            self.compute_dtype = torch.float8
+
+        if self.quantize_4bits:
+            if self.device == "cuda":
+                self.bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type=args.bnb_4bit_quant_type,
+                    bnb_4bit_compute_dtype=args.compute_dtype,
+                    bnb_4bit_use_double_quant=args.use_nested_quant,
+                )
+                self.model = FalconForCausalLM.from_pretrained(
+                    'ybelkada/falcon-7b-sharded-bf16',
+                    quantization_config=self.bnb_config,     
+                    device_map="auto",
+                    trust_remote_code=True,
+                )
+            else:
+                print("BitsAndBytes seemingly only supports deep quantization for GPUs. Try loading the model in a reduced precision format, such as float16.")
+        
+        else:
+            self.model = FalconForCausalLM.from_pretrained(
                 'ybelkada/falcon-7b-sharded-bf16',
                 device_map="auto",
+                torch_dtype=self.compute_dtype,
                 trust_remote_code=True,
-                quantization_config=bnb_config,
-        )
+            )
+
         self.model.load_adapter(args.model_path)
         self.tokenizer = AutoTokenizer.from_pretrained('ybelkada/falcon-7b-sharded-bf16', trust_remote_code=True)
+        #self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.model.resize_token_embeddings(len(self.tokenizer))
-        self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to('cuda')
+        self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
         
     @staticmethod
     def add_args(parser: ArgumentParser):
         parser.add_argument("--waitk", type=int, default=3)
         parser.add_argument("--decoding-strategy", type=str, default="greedy")
+        parser.add_argument("--compute-dtype", type=str, default="float32")
+        parser.add_argument("--quantize-4bits", action="store_true")
+        parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
+        parser.add_argument("--use-nested-quant", action="store_true")
         parser.add_argument("--model-path", type=str, required=True,
-                                help="path to your pretrained model or PEFT augmentation.")
+                                help="Path to your PEFT checkpoint.")
+
 
     def policy(self):
         lagging = len(self.states.source) - len(self.states.target)
@@ -63,16 +90,16 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
 
             prediction_send = prediction
-            if prediction == "<|endoftext|>":
+            if "endoftext" in prediction:
                 prediction_send = ""
            
 
-            if prediction == "<|endoftext|>" or lagging < -5:
+            if "endoftext" in prediction or lagging < -5:
                 print(f"Finished sentence: \n\tSource: {current_source}\n\t Target: {current_target + ' ' + prediction}", flush=True)
 
 
             # will need to modify finish condition at a later date
-            return WriteAction(prediction_send, finished=(prediction == "<|endoftext|>" or lagging < -5))
+            return WriteAction(prediction_send, finished=("endoftext" in prediction or lagging < -5))
         else:
             return ReadAction()
 
@@ -104,7 +131,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
         with torch.inference_mode():
             outputs = self.model.generate(
-                input_ids = encoding.input_ids.to('cuda'),
+                input_ids = encoding.input_ids.to(self.device),
                 attention_mask = encoding.attention_mask,
                 use_cache=True,
                 stopping_criteria=[stopping_criteria],
@@ -119,7 +146,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
 
     # may not need to call this, 99% of the time the first and last token will be '{' and '}'
-    def find_string_between_symbols(self, source, start_symbol='{', end_symbol='}'):
+    def find_string_between_symbols(self, source, start_symbol=['{', ' '], end_symbol=['}', ' ']):
         """
         Returns the content between the first instance of the start symbol and
         end symbol, where the depth of the level of the symbols is maintained
@@ -134,14 +161,14 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
         for i in range(len(source)):
 
-            if source[i] == start_symbol:
+            if source[i] in start_symbol:
                 found_initial_start_symbol = True
                 start_symbols_found += 1
 
             if found_initial_start_symbol:
                 content_inside += source[i]
 
-            if found_initial_start_symbol and source[i] == '}':
+            if found_initial_start_symbol and source[i] in end_symbol:
                 start_symbols_found -= 1
                 if start_symbols_found <= 0:
                     break

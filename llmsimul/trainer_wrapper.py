@@ -144,9 +144,11 @@ class LLMSimulSFTTrainerWrapper:
             evaluation_strategy="steps",
             eval_steps=args.eval_interval,
             group_by_length=True,
-            fp16=False,
+            fp16=(args.bnb_4bit_compute_dtype == "float16"),
+            bf16=(args.bnb_4bit_compute_dtype == "bfloat16"),
             #gradient_checkpointing=args.gradient_checkpointing,
         )
+        print(f'fp16: {(args.bnb_4bit_compute_dtype == "float16")}, bf16: {(args.bnb_4bit_compute_dtype == "bfloat16")}')
 
 
     def load_dataset(self):

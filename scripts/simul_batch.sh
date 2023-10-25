@@ -27,6 +27,9 @@ export PYTHONPATH="${PYHTONPATH}:${ROOT}"
 
 cd SimulEval
 
+# quantization disabled for inference by default, can be turned back on
+# with --quantize-4bit
+
 simuleval \
     --agent <PATH_TO_AGENT> \
     --source /nfs/hpc/share/starlab/victor/en-es/data/tst-COMMON/txt/tst-COMMON-fixed-reduced.en \
@@ -34,3 +37,4 @@ simuleval \
     --model-path <PATH_TO_MODEL_CHECKPOINT> \
     --output output_falcon_waitk_3_basic_test \
     --waitk 3 \
+    --device cpu --compute-dtype float32 \
