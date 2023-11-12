@@ -46,7 +46,7 @@ class StopTokenAndMaxLengthCriteria(StoppingCriteria):
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
         cur_len = input_ids.shape[-1]
-        is_done = cur_len >= self.max_length or torch.any(torch.isin(input_ids[:, -1], self.eoseq_ids)).item()
+        is_done = cur_len >= self.max_length or torch.all(torch.any(torch.isin(input_ids[:, -1], self.eoseq_ids), -1)).item()
         if self.max_position_embeddings is not None and not is_done and cur_len >= self.max_position_embeddings:
             logger.warning_once(
                 "This is a friendly reminder - the current text generation call will exceed the model's predefined "

@@ -64,7 +64,13 @@ class RemTokBPESacreBLEUScorer(QualityScorer):
     @staticmethod
     def add_args(parser):
         add_sacrebleu_args(parser)
+        parser.add_argument(
+            "--target-lang",
+            type=str,
+            default="en",
+            help="The language of the target text for mosesdecoder",
+        )
 
     @classmethod
     def from_args(cls, args):
-        return cls(args.sacrebleu_tokenizer)
+        return cls(args.sacrebleu_tokenizer, args.target_lang)
