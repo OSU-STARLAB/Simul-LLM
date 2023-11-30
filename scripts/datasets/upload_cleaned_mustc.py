@@ -104,9 +104,9 @@ def clean_mustc_data(lang_code: str, filepaths_dict: Dict) -> int:
 
 def write_wait_k_to_file(source: str, target: str, output_file, k_constant: int, eos_token: str) -> None:
 
-    for wait3_output in format_wait_k_multi_sentences(source, target, k=k_constant, eos_token=eos_token):
+    for wait_k_output in format_wait_k_multi_sentences(source, target, k=k_constant, eos_token=eos_token):
 
-        output_file.write(f'{{"current_source": "{wait3_output[0]}", "current_target": "{wait3_output[1]}", "target_token": "{wait3_output[2]}"}}\n')
+        output_file.write(f'{{"current_source": "{wait_k_output[0]}", "current_target": "{wait_k_output[1]}", "target_token": "{wait_k_output[2]}"}}\n')
 
     
 def create_translation_jsons(k_constants: List | None, temporary_output_dir: str, source_filepaths: Dict, target_filepaths: Dict,

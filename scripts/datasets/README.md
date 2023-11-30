@@ -9,11 +9,14 @@ Notes on running the dataset creation script:
     2. When running the script, it must be indicated that either a. that the script should create full translation dataset with 
         the -f flag or b. the script should create one or more partitioned wait-k datasets with the --k-constants flag
        
-    3. Temporary JSON files are created locally to be uploaded to the HuggingFace, and then deleted once the script is over.
+    3. Set "export OPENBLAS_NUM_THREADS=4" in the terminal environment to ensure there is enough memory to load in the created
+        datasets
+
+    4. Temporary JSON files are created locally to be uploaded to the HuggingFace, and then deleted once the script is over.
         Each dataset requires about 1.2 gigabytes of JSON files to be temporary created. If this it too much for your local
         directory, indicate a different directory for them to be created with the --temporary-output-dir argument
 
-    4. Run 
+    5. Run 
 
             python upload_cleaned_mustc.py --help
 

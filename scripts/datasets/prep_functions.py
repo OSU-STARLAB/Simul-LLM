@@ -9,6 +9,27 @@ def words_to_sntc(wordlist: List[str]) -> str:
     return ' '.join(wordlist).strip()
 
 
+def sntcs_to_words(sentences: str) -> List[str]:
+
+    # Split the string into words
+    words = sentences.split(' ')
+
+    # The following handles French exceptions:  [..., "bonjour", "!", ...] is converted to [..., "bonjour !", ...]
+    FRENCH_PUNCTUATION = ['!', '?', '«', '»', '».', ':']
+    i = 0
+    while i < len(words):  # Combine single punctuation marks with the preceding word
+        # Check if the current word is a single punctuation mark
+        if words[i] in FRENCH_PUNCTUATION:
+            # Combine with the previous word if it's not the first word
+            if i > 0:
+                words[i - 1] += ' ' + words[i]
+                del words[i]
+                i -= 1  # Adjust index after deletion
+        i += 1
+
+    return words
+
+
 def format_wait_k_multi_sentences(source: str, target: str, k: int, 
                                   eos_token: str = '<|endoftext|>',
                                   empty_repr: str = '') -> List[List[str]]:
@@ -24,11 +45,11 @@ def format_wait_k_multi_sentences(source: str, target: str, k: int,
 
     The output is a list of tuples in the form [current_source, current_target, target_token]    
     """
-    
+
     wait_k_prompts = []
         
-    src_words = source.split(' ')
-    tgt_words = target.split(' ')
+    src_words = sntcs_to_words(source)
+    tgt_words = sntcs_to_words(target)
     src_wordcount = len(src_words)
     tgt_wordcount = len(tgt_words)
     assert(src_wordcount > 0)
