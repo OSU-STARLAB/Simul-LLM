@@ -30,6 +30,7 @@ class LLMSimulSFTTrainerWrapper:
         self.source = args.source_lang
         self.target = args.target_lang
         self.peft = args.peft
+        self.bnb = args.bnb
         self.adapter_path = args.adapter_path
 
         if self.source == "en":
@@ -79,20 +80,21 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--model", type=str, required=True, 
             help="Path to model you want to use, currently only works with models on Huggingface Hub.",
         )
-        parser.add_argument("--peft", action="store_true")
-        parser.add_argument("--adapter-path", type=str, 
-            help="Path to locally stored adapter checkpoint that you want loaded.",
-        )
         parser.add_argument("--training-set", type=str, required=True, 
             help="Path to dataset you want to use, currently only works with datasets on Huggingface Hub.",
         )
         
         # lora adapter arguments
+        parser.add_argument("--peft", action="store_true")
+        parser.add_argument("--adapter-path", type=str, 
+            help="Path to locally stored adapter checkpoint that you want loaded.",
+        )
         parser.add_argument("--lora-alpha", type=int, default=16)
         parser.add_argument("--lora-dropout", type=float, default=0.1)
         parser.add_argument("--lora-r", type=int, default=64)
 
         # quantization framework arguments
+        parser.add_argument("--bnb", action="store_true")
         parser.add_argument("--use-4bit", action="store_true")
         parser.add_argument("--use-nested-quant", action="store_true")
         parser.add_argument("--bnb-4bit-compute-dtype", type=str, default="float16")
@@ -167,8 +169,8 @@ class LLMSimulSFTTrainerWrapper:
 
 
     def load_dataset(self):
-        self.training = load_dataset(self.training_set, split="train")
-        self.validation = load_dataset(self.training_set, split="validation")
+        self.training = load_dataset(self.training_set, split="train[0:1000]")
+        self.validation = load_dataset(self.training_set, split="validation[0:1000]")
 
 
     def setup_peft_config(self, args):

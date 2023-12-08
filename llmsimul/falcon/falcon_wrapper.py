@@ -55,7 +55,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def setup_model_and_tokenizer(self, args):
         self.model = FalconForCausalLM.from_pretrained(
             self.model_name,
-            quantization_config=self.bnb_config,
+            quantization_config=self.bnb_config if self.bnb else None,
             device_map="auto",
             trust_remote_code=True,
         )
