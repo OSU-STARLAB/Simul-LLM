@@ -21,14 +21,37 @@ unimplemented behavior from the parent wrapper.
 
 class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def __init__(self, args: Namespace):
+        self.naive_training = args.naive_training
+        self.nmt_augment = args.nmt_augment
         super().__init__(args)
+
+        print(f"Identified source language as {self.source_lang}, target language as {self.target_lang}")
+        print(f"Prompt structure is NMT: {self.naive_training}")
+        print(f"If NMT prompt structure, prompt is augmented: {self.nmt_augment}")
 
     
     @classmethod
     def add_args(cls, parser: ArgumentParser):
         super().add_args(parser)
+        parser.add_argument("--naive-training", action="store_true")
+        parser.add_argument("--nmt-augment", action="store_true")
 
 
+    def setup_peft_config(self, args):
+        self.peft_config = LoraConfig(
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            r=args.lora_r,
+            bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=[
+                "query_key_value",
+                "dense",
+                "dense_h_to_4h",
+                "dense_4h_to_h",
+            ],  # , "word_embeddings", "lm_head"],
+        )
+    
     def setup_model_and_tokenizer(self, args):
         self.model = FalconForCausalLM.from_pretrained(
             self.model_name,
@@ -42,28 +65,36 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             trust_remove_code=True,
         )
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        if self.nmt_augment:
+            self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
         self.model.resize_token_embeddings(len(self.tokenizer))
  
-
-    '''
-    The direct SFTTrainer setup is relatively straightforward, but it's worth mentioning
-    why the data collator is included. Without it, the entire input is assumed to be 
-    what the model should attempt to predict. By providing the response template, the 
-    collator will ensure that the model ignores all previous indices for the query during
-    self-attention. This should result in some throughput increases.
-    '''
 
     def setup_trainer(self, args):
         self.load_dataset()
 
         response_template = "<assistant>: "
+        if self.naive_training and self.nmt_augment:
+            response_template = "[SEP] "
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
+        
+        # potentially enable new token for NMT prompts
+        formatting = self.formatting_func
+        if self.naive_training and not self.nmt_augment:
+            formatting = self.formatting_func_naive
+        else:
+            formatting = self.formatting_func_nmt_sep_token
+
+
+        if self.adapter_path is not None:
+            self.model.load_adapter(args.adapter_path)
+
 
         self.trainer = SFTTrainer(
             model=self.model,
             train_dataset=self.training,
             eval_dataset=self.validation,
-            peft_config=self.peft_config,
+            peft_config=self.peft_config if self.peft else None,
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
@@ -84,9 +115,25 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def formatting_func(self, example):
         output_texts = []
         for i in range(len(example['current_source'])):
-            text = f"<human>: Given the English sentence {{{example['current_source'][i]}}} and the current translation in Spanish {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+            text = f"<human>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
             output_texts.append(text)
         return output_texts 
+
+    
+    def formatting_func_naive(self, example):
+        output_texts = []
+        for i in range(len(example[self.source])):
+            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <|endoftext|>"
+            output_texts.append(text)
+        return output_texts
+
+
+    def formatting_func_nmt_sep_token(self, example):
+        output_texts = []
+        for i in range(len(example['current_source'])):
+            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example['current_source'][i]}}} <assistant>: {example['current_target'][i]}[SEP] {example['target_token'][i]} <|endoftext|>"
+            output_texts.append(text)
+        return output_texts
 
 
     def train(self):

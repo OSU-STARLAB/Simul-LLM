@@ -27,7 +27,30 @@ class LLMSimulSFTTrainerWrapper:
     def __init__(self, args: Namespace):
         self.model_name = args.model
         self.training_set = args.training_set
+        self.source = args.source_lang
+        self.target = args.target_lang
+        self.peft = args.peft
+        self.adapter_path = args.adapter_path
+
+        if self.source == "en":
+            self.source_lang = "English"
+        elif self.source == "es":
+            self.source_lang = "Spanish"
+        elif self.source == "de":
+            self.source_lang = "German"
         
+        if self.target == "en":
+            self.target_lang = "English"
+        elif self.target == "es":
+            self.target_lang = "Spanish"
+        elif self.target == "de":
+            self.target_lang = "German"
+
+        assert self.source != self.target, "Source and target languages should not be the same."
+        
+        if not self.peft:
+            print(f"Warning: PEFT-LoRA is set to {self.peft}, indicating full model fine-tuning is desirable. This is not recommended for most hardware setups.")
+
         self.setup_bnb_config(args)
         self.setup_peft_config(args)
         self.setup_training_arguments(args)
@@ -55,6 +78,10 @@ class LLMSimulSFTTrainerWrapper:
         # basic arguments required for fine-tuning
         parser.add_argument("--model", type=str, required=True, 
             help="Path to model you want to use, currently only works with models on Huggingface Hub.",
+        )
+        parser.add_argument("--peft", action="store_true")
+        parser.add_argument("--adapter-path", type=str, 
+            help="Path to locally stored adapter checkpoint that you want loaded.",
         )
         parser.add_argument("--training-set", type=str, required=True, 
             help="Path to dataset you want to use, currently only works with datasets on Huggingface Hub.",
@@ -87,6 +114,9 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--max-updates", type=int, default=100000)
         parser.add_argument("--max-seq-length", type=int, default=1024)
 
+        parser.add_argument("--source-lang", type=str, default="en")
+        parser.add_argument("--target-lang", type=str, default="es")
+
 
     def setup_bnb_config(self, args):
         compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
@@ -104,21 +134,6 @@ class LLMSimulSFTTrainerWrapper:
             bnb_4bit_use_double_quant=args.use_nested_quant,
         )
 
-
-    def setup_peft_config(self, args):
-        self.peft_config = LoraConfig(
-            lora_alpha=args.lora_alpha,
-            lora_dropout=args.lora_dropout,
-            r=args.lora_r,
-            bias="none",
-            task_type="CAUSAL_LM",
-            target_modules=[
-                "query_key_value",
-                "dense",
-                "dense_h_to_4h",
-                "dense_4h_to_h",
-            ],  # , "word_embeddings", "lm_head"],
-        )
 
 
     '''
@@ -154,7 +169,11 @@ class LLMSimulSFTTrainerWrapper:
     def load_dataset(self):
         self.training = load_dataset(self.training_set, split="train")
         self.validation = load_dataset(self.training_set, split="validation")
-    
+
+
+    def setup_peft_config(self, args):
+        raise NotImplementedError
+
 
     def setup_model_and_tokenizer(self, args):
         raise NotImplementedError
