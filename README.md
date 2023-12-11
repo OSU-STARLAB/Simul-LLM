@@ -27,3 +27,20 @@ The structure of this repository is meant to be friendly to attempts to extend i
 3. Create an evaluation agent for SimulEval, copying typical text-to-text agent structure.
 
 When in doubt, those attempting to extend this repo's functionality to new LLMs are encouraged to refer to 'llmsimul/falcon/' as a reference point.
+
+---
+
+### Citation
+
+When employing or extending this framework, please consider citing us as:
+
+```
+@misc{agostinelli2023simulllm,
+      title={Simul-LLM: A Framework for Exploring High-Quality Simultaneous Translation with Large Language Models}, 
+      author={Victor Agostinelli and Max Wild and Matthew Raffel and Kazi Asif Fuad and Lizhong Chen},
+      year={2023},
+      eprint={2312.04691},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
