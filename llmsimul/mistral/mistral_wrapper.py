@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from transformers import FalconForCausalLM
+from transformers import MistralForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
@@ -14,12 +14,12 @@ from argparse import ArgumentParser, Namespace
 from llmsimul.trainer_wrapper import LLMSimulSFTTrainerWrapper
 
 '''
-The below class serves as a wrapper for fine-tuning Falcon for simultaneous translation
+The below class serves as a wrapper for fine-tuning Mistral for simultaneous translation
 via SFTTrainer. This extends from LLMSimulSFTTrainerWrapper and implements remaining 
 unimplemented behavior from the parent wrapper.
 '''
 
-class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
+class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def __init__(self, args: Namespace):
         self.naive_training = args.naive_training
         self.nmt_augment = args.nmt_augment
@@ -45,15 +45,19 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             bias="none",
             task_type="CAUSAL_LM",
             target_modules=[
-                "query_key_value",
-                "dense",
-                "dense_h_to_4h",
-                "dense_4h_to_h",
-            ],  # , "word_embeddings", "lm_head"],
-        )
-    
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+        ) 
+
+
     def setup_model_and_tokenizer(self, args):
-        self.model = FalconForCausalLM.from_pretrained(
+        self.model = MistralForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
             device_map="auto",
@@ -65,8 +69,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             trust_remove_code=True,
         )
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        if self.nmt_augment:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
+        self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>:', '<human>:']})
         self.model.resize_token_embeddings(len(self.tokenizer))
  
 
@@ -74,21 +77,11 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.load_dataset()
 
         response_template = "<assistant>: "
-        if self.naive_training and self.nmt_augment:
-            response_template = "[SEP] "
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
-        # potentially enable new token for NMT prompts
         formatting = self.formatting_func
-        if self.naive_training and not self.nmt_augment:
+        if self.naive_training:
             formatting = self.formatting_func_nmt
-        else:
-            formatting = self.formatting_func_nmt_sep_token
-
-
-        if self.adapter_path is not None:
-            self.model.load_adapter(args.adapter_path)
-
 
         self.trainer = SFTTrainer(
             model=self.model,
@@ -98,7 +91,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
-            formatting_func=self.formatting_func,
+            formatting_func=formatting,
             args=self.training_arguments,
         )
    
@@ -123,15 +116,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def formatting_func_nmt(self, example):
         output_texts = []
         for i in range(len(example[self.source])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <|endoftext|>"
-            output_texts.append(text)
-        return output_texts
-
-
-    def formatting_func_nmt_sep_token(self, example):
-        output_texts = []
-        for i in range(len(example['current_source'])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example['current_source'][i]}}} <assistant>: {example['current_target'][i]}[SEP] {example['target_token'][i]} <|endoftext|>"
+            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <\s>"
             output_texts.append(text)
         return output_texts
 

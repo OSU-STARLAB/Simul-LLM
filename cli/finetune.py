@@ -16,12 +16,26 @@ def main():
     llm, _ = model_parser().parse_known_args(sys.argv[1:])
     parser = argparse.ArgumentParser()
 
-    if "falcon" in llm.model:
+    if "falcon" in llm.model.lower():
         print(f"Identified Falcon as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
         from llmsimul.falcon.falcon_wrapper import FalconSFTTrainerWrapper
         FalconSFTTrainerWrapper.add_args(parser)
         trainer = FalconSFTTrainerWrapper(parser.parse_args())
         print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+
+    elif "llama" in llm.model.lower():
+        print(f"Identified LLaMA as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
+        from llmsimul.llama.llama_wrapper import LlamaSFTTrainerWrapper
+        LlamaSFTTrainerWrapper.add_args(parser)
+        trainer = LlamaSFTTrainerWrapper(parser.parse_args())
+        print(f"Successfully loaded LLaMA fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+        
+    elif "mistral" in llm.model.lower():
+        print(f"Identified Mistral as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
+        from llmsimul.mistral.mistral_wrapper import MistralSFTTrainerWrapper
+        MistralSFTTrainerWrapper.add_args(parser)
+        trainer = MistralSFTTrainerWrapper(parser.parse_args())
+        print(f"Successfully loaded Mistral fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
 
     else:
         print("=" * 75)

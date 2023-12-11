@@ -8,14 +8,14 @@ from queue import Queue
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from transformers import FalconForCausalLM
+from transformers import LLaMaForCausalLM
 from peft import LoraConfig, AutoPeftModelForCausalLM
 
 from transformers.generation.stopping_criteria import StoppingCriteria
-from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriteria
+from llmsimul.llama.llama_stopping_criteria import StopTokenAndMaxLengthCriteria
 
 @entrypoint
-class FalconWaitkTextAgent(TextToTextAgent):
+class LLaMaWaitkTextAgent(TextToTextAgent):
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk
@@ -95,7 +95,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
                     bnb_4bit_compute_dtype=args.compute_dtype,
                     bnb_4bit_use_double_quant=args.use_nested_quant,
                 )
-                self.model = FalconForCausalLM.from_pretrained(
+                self.model = LLaMaForCausalLM.from_pretrained(
                     args.model,
                     quantization_config=self.bnb_config,     
                     device_map="auto",
@@ -106,7 +106,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
         
         else:
             print("Model device map currently set to 'auto,' fix incoming soon.")
-            self.model = FalconForCausalLM.from_pretrained(
+            self.model = LLaMaForCausalLM.from_pretrained(
                 args.model,
                 device_map="auto",
                 torch_dtype=self.compute_dtype,
@@ -171,10 +171,10 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
             # handle some edge cases, don't want these in translation of course
             prediction_send = prediction
-            if "endoftext" in prediction or "}" in prediction:
+            if "\s" in prediction or "}" in prediction:
                 prediction_send = ""
            
-            finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+            finished = ("\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
             # logging and account for extra read actions on force finish
             if finished:
@@ -196,12 +196,12 @@ class FalconWaitkTextAgent(TextToTextAgent):
         # prediction management with write buffer
         prediction = self.write_buffer.get()
         prediction_send = prediction
-        if "endoftext" in prediction:
+        if "\s" in prediction:
             prediction_send = ""
         elif "}" in prediction:
             prediction_send = prediction.strip("}")
        
-        finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+        finished = ("\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
         # logging and account for extra read actions on force finish
         if finished:
@@ -217,7 +217,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
 
     ''' 
-    The following functions are entirely the design of Max Wild and detail translation wrappers for Falcon 
+    The following functions are entirely the design of Max Wild and detail translation wrappers for LLaMa 
     '''
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):
         """
