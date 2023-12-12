@@ -9,7 +9,7 @@ cd ${ROOT}
 export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
 export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
 
-export PYTHONPATH="${PYHTONPATH}:${ROOT}"
+export PYTHONPATH="${PYHTHONPATH}:${ROOT}"
 
 python cli/finetune.py \
     --model ybelkada/falcon-7b-sharded-bf16 \
