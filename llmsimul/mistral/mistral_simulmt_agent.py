@@ -21,7 +21,7 @@ class MistralWaitkTextAgent(TextToTextAgent):
         self.waitk = args.waitk
         self.decoding_strategy = args.decoding_strategy
         self.device = args.device
-        self.quantize_4bits = args.quantize_4bits
+        self.bnb = args.bnb
         self.num_beams = args.num_beams
         self.num_chunks = args.num_chunks
         self.window_size = args.window_size
@@ -70,7 +70,7 @@ class MistralWaitkTextAgent(TextToTextAgent):
         parser.add_argument("--window-size", type=int, default=10)
         parser.add_argument("--decoding-strategy", type=str, default="greedy")
         parser.add_argument("--compute-dtype", type=str, default="float32")
-        parser.add_argument("--quantize-4bits", action="store_true")
+        parser.add_argument("--bnb", action="store_true")
         parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
         parser.add_argument("--use-nested-quant", action="store_true")
         parser.add_argument("--force-finish", action="store_true")
@@ -87,7 +87,7 @@ class MistralWaitkTextAgent(TextToTextAgent):
 
     def load_model_and_vocab(self, args):
         # load model, quantize on extremely memory constrained rigs
-        if self.quantize_4bits:
+        if self.bnb:
             if self.device == "cuda":
                 self.bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
@@ -123,8 +123,9 @@ class MistralWaitkTextAgent(TextToTextAgent):
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
-        if self.nmt_augment:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
+        #if self.nmt_augment:
+        #    self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
+        self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>:', '<human>:']})
         
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)

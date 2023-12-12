@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from transformers import LLaMaForCausalLM
+from transformers import LlamaForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
@@ -14,12 +14,12 @@ from argparse import ArgumentParser, Namespace
 from llmsimul.trainer_wrapper import LLMSimulSFTTrainerWrapper
 
 '''
-The below class serves as a wrapper for fine-tuning LLaMa for simultaneous translation
+The below class serves as a wrapper for fine-tuning Llama for simultaneous translation
 via SFTTrainer. This extends from LLMSimulSFTTrainerWrapper and implements remaining 
 unimplemented behavior from the parent wrapper.
 '''
 
-class LLaMaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
+class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def __init__(self, args: Namespace):
         self.naive_training = args.naive_training
         self.nmt_augment = args.nmt_augment
@@ -57,7 +57,7 @@ class LLaMaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
 
 
     def setup_model_and_tokenizer(self, args):
-        self.model = LLaMaForCausalLM.from_pretrained(
+        self.model = LlamaForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
             device_map="auto",
