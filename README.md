@@ -1,6 +1,6 @@
 # Simul-LLM
 
-Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to text-to-text simultaneous machine translation (SimulMT). It currently supports Falcon-based models and will imminently support both LLaMa and Mistral-based models. 
+Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to text-to-text simultaneous machine translation (SimulMT). It currently supports Falcon-based models and will imminently support both Llama and Mistral-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
 
 To work with framework and replicate the environment it was initially constructed in, clone recursively and do the following. 
 
@@ -13,6 +13,21 @@ pip install -e .
 Some example fine-tuning datasets are provided on the HuggingFace Hub under 'maxolotl/.'
 
 Example scripts are provided via 'scripts/' with default arguments being set-up for a fully sharded Falcon 7B model on relatively low-end hardware. To extend this framework to other LLMs, it's recommended that the setup within 'llmsimul/falcon/' be copied. 
+
+A few PEFT LoRA checkpoints are provided here for Falcon-based models. 
+
+| en-es | en-de |
+| ----- | ----- |
+| [NMT-chkpt](https://huggingface.co/agostinvic/nmt-en-es) | [NMT-chkpt](https://huggingface.co/agostinvic/nmt-en-de) |
+| [Exp-Wait7-chkpt](https://huggingface.co/agostinvic/simulmt-2M-en-de) | [Exp-Wait7-chkpt](https://huggingface.co/agostinvic/simulmt-2M-en-de) | 
+
+---
+
+### To-Do/Wish List
+
+1. Finish validating Llama and Mistral-based examples.
+2. Finish adding some extra ``accelerate`` support to ensure access to more interesting DP paradigms.
+3. Add multi-modal options/support for SimulST possibilities.
 
 ---
 
