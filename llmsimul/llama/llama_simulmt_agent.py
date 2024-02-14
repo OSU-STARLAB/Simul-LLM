@@ -8,14 +8,14 @@ from queue import Queue
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from transformers import FalconForCausalLM
+from transformers import LlamaForCausalLM
 from peft import LoraConfig, AutoPeftModelForCausalLM
 
 from transformers.generation.stopping_criteria import StoppingCriteria
-from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriteria
+from llmsimul.llama.llama_stopping_criteria import StopTokenAndMaxLengthCriteria
 
 @entrypoint
-class FalconWaitkTextAgent(TextToTextAgent):
+class LlamaWaitkTextAgent(TextToTextAgent):
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk
@@ -101,7 +101,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
                     bnb_4bit_compute_dtype=args.compute_dtype,
                     bnb_4bit_use_double_quant=args.use_nested_quant,
                 )
-                self.model = FalconForCausalLM.from_pretrained(
+                self.model = LlamaForCausalLM.from_pretrained(
                     args.model,
                     quantization_config=self.bnb_config,     
                     device_map="auto",
@@ -112,7 +112,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
         
         else:
             print("Model device map currently set to 'auto,' fix incoming soon.")
-            self.model = FalconForCausalLM.from_pretrained(
+            self.model = LlamaForCausalLM.from_pretrained(
                 args.model,
                 device_map="auto",
                 torch_dtype=self.compute_dtype,
@@ -128,6 +128,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
         # load tokenizer, could also enable local loading
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        
+        # based on a log that warned we should use left padding? 
+        self.tokenizer.padding_side = 'left'
         
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
@@ -196,10 +199,10 @@ class FalconWaitkTextAgent(TextToTextAgent):
             if "}" in prediction:
                 prediction_send = prediction_send.strip("}")
 
-            if "endoftext" in prediction:
+            if "\\s" in prediction:
                 prediction_send = ""
            
-            finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+            finished = ("\\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
             # logging and account for extra read actions on force finish
             if finished:
@@ -226,12 +229,12 @@ class FalconWaitkTextAgent(TextToTextAgent):
         # prediction management with write buffer
         prediction = self.write_buffer.get()
         prediction_send = prediction
-        if "endoftext" in prediction:
+        if "\\s" in prediction:
             prediction_send = ""
         elif "}" in prediction:
             prediction_send = prediction.strip("}")
        
-        finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+        finished = ("\\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
         # logging and account for extra read actions on force finish
         if finished:
@@ -248,6 +251,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
         return WriteAction(prediction_send, finished=finished)
 
 
+    ''' 
+    The following functions are entirely the design of Max Wild and detail translation wrappers for Llama 
+    '''
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):
         """
         Call upon a specific model to do a translation request, the model input
@@ -303,7 +309,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
         #print(all_output)
 
         # Slice the returned array to remove the input that we fed the model
-        # offset of 5 is to account for BOS in Falcon and Llama
+        # offset of 5 is to account for BOS in Llama and Mistral
         if not self.ralcp:
             return all_output[0][len(input_prompt) + 5:]
         else:

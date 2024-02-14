@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from transformers import FalconForCausalLM
+from transformers import MistralForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
@@ -14,12 +14,12 @@ from argparse import ArgumentParser, Namespace
 from llmsimul.trainer_wrapper import LLMSimulSFTTrainerWrapper
 
 '''
-The below class serves as a wrapper for fine-tuning Falcon for simultaneous translation
+The below class serves as a wrapper for fine-tuning Mistral for simultaneous translation
 via SFTTrainer. This extends from LLMSimulSFTTrainerWrapper and implements remaining 
 unimplemented behavior from the parent wrapper.
 '''
 
-class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
+class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def __init__(self, args: Namespace):
         self.naive_training = args.naive_training
         self.nmt_augment = args.nmt_augment
@@ -45,15 +45,19 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             bias="none",
             task_type="CAUSAL_LM",
             target_modules=[
-                "query_key_value",
-                "dense",
-                "dense_h_to_4h",
-                "dense_4h_to_h",
-            ],  # , "word_embeddings", "lm_head"],
-        )
-    
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+        ) 
+
+
     def setup_model_and_tokenizer(self, args):
-        self.model = FalconForCausalLM.from_pretrained(
+        self.model = MistralForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
             device_map="auto",
@@ -66,25 +70,18 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         )
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.model.resize_token_embeddings(len(self.tokenizer))
+        self.tokenizer.padding_side = 'right'
  
 
     def setup_trainer(self, args):
         self.load_dataset()
 
-        response_template = "<assistant>:"
+        response_template = "<a>:"
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
-        # potentially enable new token for NMT prompts
         formatting = self.formatting_func
-        if self.naive_training and not self.nmt_augment:
+        if self.naive_training:
             formatting = self.formatting_func_nmt
-        else:
-            formatting = self.formatting_func_nmt_sep_token
-
-
-        if self.adapter_path is not None:
-            self.model.load_adapter(args.adapter_path)
-
 
         self.trainer = SFTTrainer(
             model=self.model,
@@ -94,7 +91,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
-            formatting_func=self.formatting_func,
+            formatting_func=formatting,
             args=self.training_arguments,
         )
    
@@ -103,15 +100,15 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     Formatting function takes care of prompt specification for a given LLM and allows the data
     collator to handle our data better. Example sentence at start of wait-3 translation:
 
-       <human>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
-       what's the next translated word? <assistant>: {Les}
+       <h>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
+       what's the next translated word? <a>: {Les}
 
     '''
 
     def formatting_func(self, example):
         output_texts = []
         for i in range(len(example['current_source'])):
-            text = f"<human>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+            text = f"<h>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <a>: {{{example['target_token'][i]}}}"
             output_texts.append(text)
         return output_texts 
 
@@ -119,15 +116,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def formatting_func_nmt(self, example):
         output_texts = []
         for i in range(len(example[self.source])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <|endoftext|>"
-            output_texts.append(text)
-        return output_texts
-
-
-    def formatting_func_nmt_sep_token(self, example):
-        output_texts = []
-        for i in range(len(example['current_source'])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example['current_source'][i]}}} <assistant>: {example['current_target'][i]}[SEP] {example['target_token'][i]} <|endoftext|>"
+            text = f"<h>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <a>: {example[self.target][i]} <\s>"
             output_texts.append(text)
         return output_texts
 
