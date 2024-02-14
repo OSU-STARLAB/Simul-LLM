@@ -21,12 +21,16 @@ class FalconWaitkTextAgent(TextToTextAgent):
         self.waitk = args.waitk
         self.decoding_strategy = args.decoding_strategy
         self.device = args.device
-        self.quantize_4bits = args.quantize_4bits
+        self.bnb = args.bnb
         self.num_beams = args.num_beams
         self.num_chunks = args.num_chunks
         self.window_size = args.window_size
         self.force_finish = args.force_finish
         self.maximum_length_delta = args.maximum_length_delta
+        
+        # experimental RALCP arguments
+        self.ralcp = args.ralcp
+        self.ralcp_thresh = args.ralcp_thresh
 
         self.nmt_prompt = args.nmt_prompt
         self.nmt_augment = args.nmt_augment
@@ -69,8 +73,10 @@ class FalconWaitkTextAgent(TextToTextAgent):
         parser.add_argument("--num-chunks", type=int, default=1)
         parser.add_argument("--window-size", type=int, default=10)
         parser.add_argument("--decoding-strategy", type=str, default="greedy")
+        parser.add_argument("--ralcp", action="store_true")
+        parser.add_argument("--ralcp-thresh", type=float, default=0.6)
         parser.add_argument("--compute-dtype", type=str, default="float32")
-        parser.add_argument("--quantize-4bits", action="store_true")
+        parser.add_argument("--bnb", action="store_true")
         parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
         parser.add_argument("--use-nested-quant", action="store_true")
         parser.add_argument("--force-finish", action="store_true")
@@ -87,7 +93,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
     def load_model_and_vocab(self, args):
         # load model, quantize on extremely memory constrained rigs
-        if self.quantize_4bits:
+        if self.bnb:
             if self.device == "cuda":
                 self.bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
@@ -123,9 +129,6 @@ class FalconWaitkTextAgent(TextToTextAgent):
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
-        if self.nmt_augment:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
-        
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
     
@@ -136,6 +139,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
         current_source = " ".join(self.states.source)
         current_target = " ".join(self.states.target)
 
+        # dealing with a white space edge case
         current_target = " ".join(current_target.split())
                 
         # useful for multi-word beam search schemes
@@ -148,37 +152,63 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 prediction = model_output.strip().strip("{").split(' ')[0]
             elif self.decoding_strategy == "greedy":
                 model_output = self.make_inference_translation(current_source, current_target)
-                prediction = self.find_string_between_symbols(model_output)
+                prediction = model_output.strip().strip("{").strip("}").strip().split(' ')[0]
             elif self.decoding_strategy == "subword_beam_search":
                 model_output = self.make_inference_translation(current_source, current_target, num_beams=self.num_beams)
-                prediction = self.find_string_between_symbols(model_output)
-            elif self.decoding_strategy == "multi_word_beam_search":
+                prediction = model_output.strip().strip("{").strip("}").strip().split(' ')[0]
+            elif self.decoding_strategy == "multi_word_beam_search" and not ralcp:
                 # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
                 model_output = self.make_inference_translation(
                     current_source, 
                     current_target, 
                     num_beams=self.num_beams, 
                     num_chunks=self.num_chunks, 
-                    window_size=self.window_size if self.states.source_finished else 100,
+                    window_size=self.window_size if not self.states.source_finished else 100,
                 )
-                model_output = model_output.strip().strip("{").split(' ')
+                model_output = model_output.strip().strip("{").strip("}").strip().split(' ')
                 prediction = model_output[0]
-                for i in range(1, min(self.num_chunks + 1, len(model_output))):
+                for i in range(1, min(self.num_chunks, len(model_output))):
                     self.write_buffer.put(model_output[i])
+            elif self.decoding_strategy == "multi_word_beam_search" and self.ralcp:
+                # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
+                model_output = self.make_inference_translation(
+                        current_source,
+                        current_target,
+                        num_beams=self.num_beams,
+                        num_chunks=self.num_chunks,
+                        window_size=self.window_size if not self.states.source_finished else 100,
+                )
+                new_list = []
+                for i in range(len(model_output)):
+                    new_list.append(model_output[i].strip().strip("{").split(' '))
+                predictions = self.ralcp_sort(new_list)
+                prediction = predictions[0]
+                for i in range(1, min(self.num_chunks, len(predictions))):
+                    self.write_buffer.put(predictions[i])
             else:
                 raise NotImplementedError
 
 
             # handle some edge cases, don't want these in translation of course
             prediction_send = prediction
-            if "endoftext" in prediction or "}" in prediction:
+            
+            # looks redundant, but covering an edge case issue
+            if "}" in prediction:
+                prediction_send = prediction_send.strip("}")
+
+            if "endoftext" in prediction:
                 prediction_send = ""
            
             finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
             # logging and account for extra read actions on force finish
             if finished:
-                print(f"Finished sentence: \n\tSource: '{current_source}'\n\t Target: '{current_target + ' ' + prediction}'", flush=True)
+
+                # covers buffer edge case
+                while not self.write_buffer.empty():
+                    self.write_buffer.get()
+
+                print(f"Finished sentence: \n\tSource: '{current_source}'\n\t Target: '{current_target + ' ' + prediction_send}'", flush=True)
             elif prediction_send == "" and (self.force_finish and not self.states.source_finished):
                 return ReadAction()
 
@@ -205,6 +235,8 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
         # logging and account for extra read actions on force finish
         if finished:
+            while not self.write_buffer.empty():
+                self.write_buffer.get()
             print(f"Finished sentence: \n\tSource: '{current_source}'\n\t Target: '{current_target + ' ' + prediction}'", flush=True)
         elif prediction_send == "" and (self.force_finish and not self.states.source_finished):
             # flush the buffer
@@ -216,9 +248,6 @@ class FalconWaitkTextAgent(TextToTextAgent):
         return WriteAction(prediction_send, finished=finished)
 
 
-    ''' 
-    The following functions are entirely the design of Max Wild and detail translation wrappers for Falcon 
-    '''
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):
         """
         Call upon a specific model to do a translation request, the model input
@@ -229,13 +258,16 @@ class FalconWaitkTextAgent(TextToTextAgent):
             current_translation = ' '
 
         if self.nmt_prompt and not self.nmt_augment:
-            input_prompt = f'<human>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <assistant>: {{{current_translation}'
+            input_prompt = f'<h>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <a>: {current_translation}'
         elif self.nmt_prompt and self.nmt_augment:
             input_prompt = f'<human>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <assistant>: {current_translation} [SEP] '
         else:
             input_prompt = f'<human>: Given the {self.source_lang} sentence {{{source}}}, and the current translation in {self.target_lang} {{{current_translation}}}, what\'s the next translated word? <assistant>: '
 
-        print(input_prompt)
+        if self.ralcp:
+            return_seq = num_beams
+        else:
+            return_seq = 1
 
         # 8 max tokens seems to be a pretty safe value to catch multi-token words
         # reducing this results in possibly losing tokens, custom stopping criteria
@@ -256,47 +288,78 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 max_new_tokens=window_size,
                 pad_token_id=self.tokenizer.pad_token_id,
                 num_beams=num_beams,
-                num_return_sequences=1,
+                num_return_sequences=return_seq,
                 use_cache=True,
                 #length_penalty=1.0,
                 #no_repeat_ngram_size=1,
             )
 
-        all_output = self.tokenizer.decode(outputs[0])
+        top_output = self.tokenizer.decode(outputs[0])
+        
+        all_output = []
+        for i in range(return_seq):
+            all_output.append(self.tokenizer.decode(outputs[i]))
+        #all_output = self.tokenizer.decode(outputs)
+        #print(all_output)
 
         # Slice the returned array to remove the input that we fed the model
-        return all_output[len(input_prompt):]
+        # offset of 5 is to account for BOS in Falcon and Llama
+        if not self.ralcp:
+            return all_output[0][len(input_prompt) + 5:]
+        else:
+            ralcp_list = []
+            for i in range(return_seq):
+                ralcp_list.append(all_output[i][len(input_prompt) + 5:])
+            return ralcp_list
+   
 
+    # a bit inefficient, technically slightly erroneous for agreement thresholds of
+    # less than 0.5 so we assume that it should be above that
+    def ralcp_sort(self, model_output):
+        ralcp_candidates = model_output
+        ref_len = len(model_output)
+        voting_dict = {}
+        idx = 0
+        min_len = len(model_output[0])
+        for i in range(1, len(model_output)):
+            min_len = min(min_len, len(model_output[i]))
 
-    # may not need to call this, 99% of the time the first and last token will be '{' and '}'
-    def find_string_between_symbols(self, source, start_symbol=['{'], end_symbol=['}', '<']):
-        """
-        Returns the content between the first instance of the start symbol and
-        end symbol, where the depth of the level of the symbols is maintained
-            - so "{{in}in{in}in} {out}" returns "{in}in{in}in", not "{in"
-                  ^            ^
-                  First instance of start/end
-        """
+        while idx < min_len:
+            
+            # find most commonly agreed upon candidates, heuristic for longest common prefix
+            # can technicall miss the longest common prefix if the agreement threshold is below 0.5
+            for i in range(len(ralcp_candidates)):
+                if ralcp_candidates[i][idx] not in voting_dict.keys():
+                    voting_dict[ralcp_candidates[i][idx]] = [i]
+                else:
+                    voting_dict[ralcp_candidates[i][idx]].append(i)
+           
+            # find the top line of agreement, part of heuristic. we assume thresholds of 0.5 or
+            # higher, to ensure that only one agreement line is possible
+            top_opt = 0
+            top_votes = len(voting_dict[ralcp_candidates[0][idx]])
+            for i in range(1, len(ralcp_candidates)):
+                if top_votes < len(voting_dict[ralcp_candidates[0][idx]]):
+                    top_opt = i
+                    top_votes = len(voting_dict[ralcp_candidates[0][idx]])
 
-        content_inside = ''
-        start_symbols_found = 0
-        found_initial_start_symbol = False
+            # check to make sure agreement threshold is met
+            if float(top_votes / ref_len) > self.ralcp_thresh:
+                temp_list = []
+                for indx in voting_dict[ralcp_candidates[top_opt][idx]]:
+                    temp_list.append(model_output[indx])
+                model_output = temp_list
 
-        for i in range(len(source)):
+                if len(model_output) == 1:
+                    return model_output
 
-            if source[i] in start_symbol:
-                found_initial_start_symbol = True
-                start_symbols_found += 1
+            else:
+                model_output = model_output[0]
+                #print(model_output)
+                return model_output
+            
+            idx += 1
+            voting_dict = {}
+            ralcp_candidates = model_output
 
-            if found_initial_start_symbol:
-                content_inside += source[i]
-
-            if found_initial_start_symbol and source[i] in end_symbol:
-                if source[i] == '<' and source[i-1] == '{':
-                    return source[1:]
-
-                start_symbols_found -= 1
-                if start_symbols_found <= 0:
-                    break
-
-        return content_inside[1:-1]  # Ignore the initial and ending '{' and '}'
+        return model_output[0]

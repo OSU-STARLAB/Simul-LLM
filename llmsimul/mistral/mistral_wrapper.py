@@ -69,14 +69,14 @@ class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             trust_remove_code=True,
         )
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>:', '<human>:']})
         self.model.resize_token_embeddings(len(self.tokenizer))
+        self.tokenizer.padding_side = 'right'
  
 
     def setup_trainer(self, args):
         self.load_dataset()
 
-        response_template = "<assistant>: "
+        response_template = "<a>:"
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
         formatting = self.formatting_func
@@ -100,15 +100,15 @@ class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     Formatting function takes care of prompt specification for a given LLM and allows the data
     collator to handle our data better. Example sentence at start of wait-3 translation:
 
-       <human>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
-       what's the next translated word? <assistant>: {Les}
+       <h>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
+       what's the next translated word? <a>: {Les}
 
     '''
 
     def formatting_func(self, example):
         output_texts = []
         for i in range(len(example['current_source'])):
-            text = f"<human>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+            text = f"<h>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <a>: {{{example['target_token'][i]}}}"
             output_texts.append(text)
         return output_texts 
 
@@ -116,7 +116,7 @@ class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def formatting_func_nmt(self, example):
         output_texts = []
         for i in range(len(example[self.source])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <\s>"
+            text = f"<h>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <a>: {example[self.target][i]} <\s>"
             output_texts.append(text)
         return output_texts
 

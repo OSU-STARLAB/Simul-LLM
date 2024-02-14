@@ -65,17 +65,13 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             trust_remove_code=True,
         )
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        if self.nmt_augment:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': ['<assistant>: ', '<human>: ', '[SEP] ']})
         self.model.resize_token_embeddings(len(self.tokenizer))
  
 
     def setup_trainer(self, args):
         self.load_dataset()
 
-        response_template = "<assistant>: "
-        if self.naive_training and self.nmt_augment:
-            response_template = "[SEP] "
+        response_template = "<assistant>:"
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
         # potentially enable new token for NMT prompts
