@@ -16,6 +16,10 @@ from llmsimul.mistral.mistral_stopping_criteria import StopTokenAndMaxLengthCrit
 
 @entrypoint
 class MistralWaitkTextAgent(TextToTextAgent):
+
+    source_type: str = "comp-text"
+    target_type: str = "text"
+
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk

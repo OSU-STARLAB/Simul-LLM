@@ -16,6 +16,10 @@ from llmsimul.llama.llama_stopping_criteria import StopTokenAndMaxLengthCriteria
 
 @entrypoint
 class LlamaWaitkTextAgent(TextToTextAgent):
+
+    source_type: str = "comp-text"
+    target_type: str = "text"
+
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk

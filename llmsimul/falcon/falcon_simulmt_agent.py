@@ -16,6 +16,10 @@ from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriter
 
 @entrypoint
 class FalconWaitkTextAgent(TextToTextAgent):
+
+    source_type: str = "comp-text"
+    target_type: str = "text"
+
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk
