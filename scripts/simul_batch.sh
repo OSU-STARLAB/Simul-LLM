@@ -9,14 +9,18 @@ cd ${ROOT}
 export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
 export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
 
-export PYTHONPATH="${PYTHONPATH}:${ROOT}"
-
-cd SimulEval
+export PYTHONPATH="${PYHTONPATH}:${ROOT}"
 
 # quantization disabled for inference by default, can be turned back on
 # with --quantize-4bit
 
-simuleval \
+# some extensions are available in 'llmsimul/simuleval_extensions/' including
+# a "computationally aware" LAAL for text and a framework for enabling 
+# computationally aware options for other latency metrics, such metrics 
+# cannot be 1:1 compared to their non-CA counterparts as their units differ
+# (i.e. LAAL is in tokens/chunks compared to "CT_LAAL" which is in seconds of computation)
+
+cd cli/simuleval_wrapper.py \
     --agent <PATH_TO_AGENT> \
     --source <PATH_TO_SOURCE_TEXT> \
     --target <PATH_TO_TARGET_TEXT> \
