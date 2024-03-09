@@ -32,8 +32,44 @@ class CompText_LAALScorer(LAALScorer):
             if delays is None or len(delays) == 0:
                 logger.warn(f"Instance {index} has no delay information. Skipped")
                 continue
+            
             score = self.compute(ins)
             ins.metrics[self.metric_name] = score
             scores.append(score)
 
         return mean(scores)
+    
+    def compute(self, ins: Instance):
+        """
+        Function to compute latency on one sentence (instance).
+
+        Args:
+            ins: Instance: one instance
+
+        Returns:
+            float: the latency score on one sentence.
+        """
+        delays, source_length, target_length = self.get_delays_lengths(ins)
+        if delays[0] > source_length:
+            return delays[0]
+
+
+        # necessary to avoid deflating CA latency, first latency measurement is "fraudulent"
+        # in that t2t has no timing implications in the first place, so there is no
+        # effective cost for loading in multiple input chunks without a cost enforced
+        # by the environment
+            
+        if len(delays) > 1:
+            delays = delays[1:]
+
+        LAAL = 0
+        gamma = max(len(delays), target_length) / source_length
+        tau = 0
+        for t_minus_1, d in enumerate(delays):
+            LAAL += d - t_minus_1 / gamma
+            tau = t_minus_1 + 1
+
+            if d >= source_length:
+                break
+        LAAL /= tau
+        return LAAL
