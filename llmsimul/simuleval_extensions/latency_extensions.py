@@ -38,3 +38,32 @@ class CompText_LAALScorer(LAALScorer):
             scores.append(score)
 
         return mean(scores)
+
+    # modified to factor in assumed inherent token latency
+    # inherent latency currently hardcoded to 700 ms
+    def compute(self, ins: Instance):
+        """
+        Function to compute latency on one sentence (instance).
+
+        Args:
+            ins: Instance: one instance
+
+        Returns:
+            float: the latency score on one sentence.
+        """
+        delays, source_length, target_length = self.get_delays_lengths(ins)
+        source_length = source_length * 700
+        if delays[0] > source_length:
+            return delays[0]
+
+        LAAL = 0
+        gamma = max(len(delays), target_length) / source_length
+        tau = 0
+        for t_minus_1, d in enumerate(delays):
+            LAAL += d - t_minus_1 / gamma
+            tau = t_minus_1 + 1
+
+            if d >= source_length:
+                break
+        LAAL /= tau
+        return LAAL
