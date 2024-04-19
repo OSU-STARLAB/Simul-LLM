@@ -23,6 +23,12 @@ class CompText_LAALScorer(LAALScorer):
     values and they should be considered separately.
     """
 
+    def __init__(
+        self, computation_aware: bool = False, use_ref_len: bool = True
+    ) -> None:
+        super().__init__(computation_aware, use_ref_len)
+        self.source_latency, _ = latency_parser().parse_known_args(sys.argv[1:])
+
     # simply ignores the RuntimeError raised in the original generic
     # latency scorer
     def __call__(self, instances: Dict[int, Instance]) -> float:
@@ -40,7 +46,6 @@ class CompText_LAALScorer(LAALScorer):
         return mean(scores)
 
     # modified to factor in assumed inherent token latency
-    # inherent latency currently hardcoded to 700 ms
     def compute(self, ins: Instance):
         """
         Function to compute latency on one sentence (instance).
@@ -52,7 +57,7 @@ class CompText_LAALScorer(LAALScorer):
             float: the latency score on one sentence.
         """
         delays, source_length, target_length = self.get_delays_lengths(ins)
-        source_length = source_length * 700
+        source_length = source_length * self.source_latency
         if delays[0] > source_length:
             return delays[0]
 
@@ -67,3 +72,13 @@ class CompText_LAALScorer(LAALScorer):
                 break
         LAAL /= tau
         return LAAL
+
+    def latency_parser():
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--inherent-latency",
+            type=int,
+            default=360,
+            help="Inherent latency of modeled transcription. Assumes around 167 wpm in speech by default, slightly faster than average.",
+        )
+        return parser
