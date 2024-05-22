@@ -123,17 +123,18 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 trust_remote_code=True,
             )
 
+        # load tokenizer, could also enable local loading
+        self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        
+        self.model.resize_token_embeddings(len(self.tokenizer))
+        
         # load PEFT checkpoint
         if args.adapter_path is not None:
             self.model.load_adapter(args.adapter_path)
         else:
             print("No PEFT-LoRA adapter path was provided, this is not recommended for most hardware setups and indicates full mode fine-tuning was done.")
 
-        # load tokenizer, could also enable local loading
-        self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        
-        self.model.resize_token_embeddings(len(self.tokenizer))
         self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
     
 
@@ -309,11 +310,11 @@ class FalconWaitkTextAgent(TextToTextAgent):
         # Slice the returned array to remove the input that we fed the model
         # offset of 5 is to account for BOS in Falcon and Llama
         if not self.ralcp:
-            return all_output[0][len(input_prompt) + 5:]
+            return all_output[0][len(input_prompt):]
         else:
             ralcp_list = []
             for i in range(return_seq):
-                ralcp_list.append(all_output[i][len(input_prompt) + 5:])
+                ralcp_list.append(all_output[i][len(input_prompt):])
             return ralcp_list
    
 
