@@ -1,4 +1,4 @@
-The upload_cleaned_mustc.py script is used to clean MuST-C verbal text translations and upload the cleaned translations to anyone's 
+The `upload_cleaned_mustc.py` script is used to clean MuST-C verbal text translations and upload the cleaned translations to anyone's 
     own dataset repository in HuggingFace, uploading either full translations and/or translations partitioned into wait-k segments.
 
 
