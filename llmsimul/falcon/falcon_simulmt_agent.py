@@ -133,7 +133,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
         if args.adapter_path is not None:
             self.model.load_adapter(args.adapter_path)
         else:
-            print("No PEFT-LoRA adapter path was provided, this is not recommended for most hardware setups and indicates full mode fine-tuning was done.")
+            print("No PEFT-LoRA adapter path was provided, this is not recommended for most hardware setups and indicates full model fine-tuning was done.")
 
         self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
     
