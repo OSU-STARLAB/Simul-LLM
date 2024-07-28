@@ -16,6 +16,8 @@ from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriter
 
 from llmsimul.schedulers.waitk import WaitkScheduler
 
+from llmsimul.utils_and_misc.beam_rescoring import ralcp_sort
+
 @entrypoint
 class FalconWaitkTextAgent(TextToTextAgent):
 
@@ -200,7 +202,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 new_list = []
                 for i in range(len(model_output)):
                     new_list.append(model_output[i].strip().strip("{").split(' '))
-                predictions = self.ralcp_sort(new_list)
+                predictions = ralcp_sort(new_list, self.ralcp_thresh)
                 prediction = predictions[0]
                 for i in range(1, min(self.num_chunks, len(predictions))):
                     self.write_buffer.put(predictions[i])
@@ -238,9 +240,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
             return ReadAction()
 
 
-    ''' 
+    """
     Required for multiple consecutive translation decisions during Speculative Beam Search.
-    '''
+    """
     def buffer_commit(self, current_source, current_target):
         # prediction management with write buffer
         prediction = self.write_buffer.get()
@@ -331,54 +333,3 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 ralcp_list.append(all_output[i][len(input_prompt):])
             return ralcp_list
    
-
-    # a bit inefficient, technically slightly erroneous for agreement thresholds of
-    # less than 0.5 so we assume that it should be above that
-    def ralcp_sort(self, model_output):
-        ralcp_candidates = model_output
-        ref_len = len(model_output)
-        voting_dict = {}
-        idx = 0
-        min_len = len(model_output[0])
-        for i in range(1, len(model_output)):
-            min_len = min(min_len, len(model_output[i]))
-
-        while idx < min_len:
-            
-            # find most commonly agreed upon candidates, heuristic for longest common prefix
-            # can technicall miss the longest common prefix if the agreement threshold is below 0.5
-            for i in range(len(ralcp_candidates)):
-                if ralcp_candidates[i][idx] not in voting_dict.keys():
-                    voting_dict[ralcp_candidates[i][idx]] = [i]
-                else:
-                    voting_dict[ralcp_candidates[i][idx]].append(i)
-           
-            # find the top line of agreement, part of heuristic. we assume thresholds of 0.5 or
-            # higher, to ensure that only one agreement line is possible
-            top_opt = 0
-            top_votes = len(voting_dict[ralcp_candidates[0][idx]])
-            for i in range(1, len(ralcp_candidates)):
-                if top_votes < len(voting_dict[ralcp_candidates[0][idx]]):
-                    top_opt = i
-                    top_votes = len(voting_dict[ralcp_candidates[0][idx]])
-
-            # check to make sure agreement threshold is met
-            if float(top_votes / ref_len) > self.ralcp_thresh:
-                temp_list = []
-                for indx in voting_dict[ralcp_candidates[top_opt][idx]]:
-                    temp_list.append(model_output[indx])
-                model_output = temp_list
-
-                if len(model_output) == 1:
-                    return model_output
-
-            else:
-                model_output = model_output[0]
-                #print(model_output)
-                return model_output
-            
-            idx += 1
-            voting_dict = {}
-            ralcp_candidates = model_output
-
-        return model_output[0]
