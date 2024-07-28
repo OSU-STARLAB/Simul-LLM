@@ -4,6 +4,15 @@
     improvements when engaging in chunk-wise Speculative Beam Search.
 """
 
+from argparse import Namespace, ArgumentParser
+
+# simple to just add rescoring arguments here and import the function, to be
+# called by agents during their argparse
+def rescoring_add_args(parser: ArgumentParser):
+    parser.add_argument("--rescorer", type=str, default="none")
+    parser.add_argument("--ralcp-thresh", type=float, default=0.6)
+        
+
 # a bit inefficient, technically slightly erroneous for agreement thresholds of
 # less than 0.5 so we assume that it should be above that
 def ralcp_sort(model_output, ralcp_thresh):

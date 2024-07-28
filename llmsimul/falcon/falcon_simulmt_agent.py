@@ -16,7 +16,7 @@ from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriter
 
 from llmsimul.schedulers.waitk import WaitkScheduler
 
-from llmsimul.utils_and_misc.beam_rescoring import ralcp_sort
+from llmsimul.utils_and_misc.beam_rescoring import ralcp_sort, rescoring_add_args
 
 @entrypoint
 class FalconWaitkTextAgent(TextToTextAgent):
@@ -36,8 +36,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
         self.force_finish = args.force_finish
         self.maximum_length_delta = args.maximum_length_delta
         
-        # experimental RALCP arguments
-        self.ralcp = args.ralcp
+        # experimental RALCP arguments, can be extended to other
+        # rescoring options, a little unhappy with this implementation
+        self.rescorer = args.rescorer
         self.ralcp_thresh = args.ralcp_thresh
 
         self.nmt_prompt = args.nmt_prompt
@@ -87,8 +88,6 @@ class FalconWaitkTextAgent(TextToTextAgent):
         parser.add_argument("--num-chunks", type=int, default=1)
         parser.add_argument("--window-size", type=int, default=10)
         parser.add_argument("--decoding-strategy", type=str, default="greedy")
-        parser.add_argument("--ralcp", action="store_true")
-        parser.add_argument("--ralcp-thresh", type=float, default=0.6)
         parser.add_argument("--compute-dtype", type=str, default="float32")
         parser.add_argument("--bnb", action="store_true")
         parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
@@ -103,7 +102,10 @@ class FalconWaitkTextAgent(TextToTextAgent):
                                 help="Enables NMT prompt formatting for basic NMT fine-tuning.")
         parser.add_argument("--nmt-augment", action="store_true",
                                 help="Enables NMT prompt augmented with SimulMT behavior.")
-        
+
+        # grab all rescorer related arguments        
+        rescoring_add_args(parser)
+
         # entrance for schedulers
         WaitkScheduler.add_args(parser)
 
@@ -190,7 +192,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 prediction = model_output[0]
                 for i in range(1, min(self.num_chunks, len(model_output))):
                     self.write_buffer.put(model_output[i])
-            elif self.decoding_strategy == "multi_word_beam_search" and self.ralcp:
+            elif self.decoding_strategy == "multi_word_beam_search" and self.rescorer != "none":
                 # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
                 model_output = self.make_inference_translation(
                         current_source,
@@ -202,7 +204,13 @@ class FalconWaitkTextAgent(TextToTextAgent):
                 new_list = []
                 for i in range(len(model_output)):
                     new_list.append(model_output[i].strip().strip("{").split(' '))
-                predictions = ralcp_sort(new_list, self.ralcp_thresh)
+                
+                # begin rescoring here, ralcp supported at the moment
+                if self.rescorer == "ralcp":
+                    predictions = ralcp_sort(new_list, self.ralcp_thresh)
+                else:
+                    raise NotImplementedError
+
                 prediction = predictions[0]
                 for i in range(1, min(self.num_chunks, len(predictions))):
                     self.write_buffer.put(predictions[i])
@@ -278,6 +286,8 @@ class FalconWaitkTextAgent(TextToTextAgent):
         if current_translation is None:
             current_translation = ' '
 
+        # unclear if falcon models really require specific "human" and "assistant" tokens/setup, seem to perform
+        # fine regardless of these values
         if self.nmt_prompt and not self.nmt_augment:
             input_prompt = f'<h>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <a>: {current_translation}'
         elif self.nmt_prompt and self.nmt_augment:
