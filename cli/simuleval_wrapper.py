@@ -1,6 +1,6 @@
 """
 Command-line interface for simultaneous LLM evaluation.
-Just setups up some optional modules and imports them before,
+Just sets up up some optional modules and imports them before,
 calling SimulEval.
 """
 

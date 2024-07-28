@@ -7,12 +7,17 @@
           whether the criteria for the scheduler was met.
 """
 
+from argparse import Namespace, ArgumentParser
 from translation_scheduler import TranslationScheduler
 
 class WaitkScheduler(TranslationScheduler):
-    def __init__(self, k: int):
+    def __init__(self, args: Namespace):
         super().__init__()
-        self.k = k
+        self.k = args.k
+    
+    @staticmethod
+    def add_args(parser: ArgumentParser):
+        parser.add_argument("--k", type=int, default=3)
     
     def decision(self, *args):
         src_len = args[0]

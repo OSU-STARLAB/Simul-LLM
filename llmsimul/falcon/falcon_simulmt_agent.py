@@ -14,6 +14,8 @@ from peft import LoraConfig, AutoPeftModelForCausalLM
 from transformers.generation.stopping_criteria import StoppingCriteria
 from llmsimul.falcon.falcon_stopping_criteria import StopTokenAndMaxLengthCriteria
 
+from llmsimul.schedulers.waitk import WaitkScheduler
+
 @entrypoint
 class FalconWaitkTextAgent(TextToTextAgent):
 
@@ -22,7 +24,7 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
     def __init__(self, args: Namespace):
         super().__init__(args)
-        self.waitk = args.waitk
+        self.translation_scheduler = args.translation_scheduler
         self.decoding_strategy = args.decoding_strategy
         self.device = args.device
         self.bnb = args.bnb
@@ -66,11 +68,17 @@ class FalconWaitkTextAgent(TextToTextAgent):
 
         print(f"Identified source language as {self.source_lang} and target language as {self.target_lang}. Computing in {self.compute_dtype} for inference.")
 
+        # only waitk implemented, but easy to replace with other options
+        if self.translation_scheduler == "waitk":
+            self.scheduler = WaitkScheduler(args)
+        else:
+            raise NotImplementedError
+
         self.load_model_and_vocab(args)
         
     @staticmethod
     def add_args(parser: ArgumentParser):
-        parser.add_argument("--waitk", type=int, default=3)
+        parser.add_argument("--translation-scheduler", type=str, default="waitk")
         parser.add_argument("--source-lang", type=str, default="en")
         parser.add_argument("--target-lang", type=str, default="es")
         parser.add_argument("--num-beams", type=int, default=1)
@@ -93,6 +101,9 @@ class FalconWaitkTextAgent(TextToTextAgent):
                                 help="Enables NMT prompt formatting for basic NMT fine-tuning.")
         parser.add_argument("--nmt-augment", action="store_true",
                                 help="Enables NMT prompt augmented with SimulMT behavior.")
+        
+        # entrance for schedulers
+        WaitkScheduler.add_args(parser)
 
 
     def load_model_and_vocab(self, args):
@@ -151,7 +162,10 @@ class FalconWaitkTextAgent(TextToTextAgent):
         if not self.write_buffer.empty():
             return self.buffer_commit(current_source, current_target) 
 
-        if lagging >= self.waitk or self.states.source_finished:
+        # currently only set up for waitk, but can be easily replaced
+        decision = self.scheduler(len(self.states.source), len(self.states.target))
+
+        if decision or self.states.source_finished:
             if self.nmt_prompt and self.decoding_strategy == "greedy":
                 model_output = self.make_inference_translation(current_source, current_target)
                 prediction = model_output.strip().strip("{").split(' ')[0]
