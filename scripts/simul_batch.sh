@@ -20,6 +20,10 @@ export PYTHONPATH="${PYHTONPATH}:${ROOT}"
 # cannot be 1:1 compared to their non-CA counterparts as their units differ
 # (i.e. LAAL is in tokens/chunks compared to "CT_LAAL" which is in seconds of computation)
 
+# beam rescoring options are provided, as well, via the --rescorer argument
+# by default this is set to 'none', but RALCP is supported out of the box:
+# e.g.  --rescorer ralcp --ralcp-thresh 0.6 \
+
 cd cli/simuleval_wrapper.py \
     --agent <PATH_TO_AGENT> \
     --source <PATH_TO_SOURCE_TEXT> \
@@ -27,6 +31,6 @@ cd cli/simuleval_wrapper.py \
     --model <PATH_TO_MODEL> \
     --adapter-path <PATH_TO_PEFT_LORA_CHECKPOINT> \
     --output output_falcon_waitk_3_basic_test \
-    --waitk 3 --source-lang en --target-lang es \
+    --scheduler waitk --k 3 --source-lang en --target-lang es \
     --device cuda --compute-dtype float32 \
     --force-finish \

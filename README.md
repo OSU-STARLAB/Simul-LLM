@@ -27,7 +27,7 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 
 1. Add support for more custom tailoring of "computationally aware" MT latency. 
 2. ~~Add support for more evaluation metrics (e.g. COMET).~~
-3. Add support for easy to swap out translation scheduling. While not difficult in the project's current form, the process of swapping schedules could be rendered essentially seamless with a bit of additional work. 
+3. ~~Add support for easy to swap out translation scheduling. While not difficult in the project's current form, the process of swapping schedules could be rendered essentially seamless with a bit of additional work. ~~
 4. Finish validating Llama examples.
 5. Finish adding some extra ``accelerate`` support to ensure access to more interesting DP paradigms.
 6. Add multi-modal options/support for SimulST possibilities.
