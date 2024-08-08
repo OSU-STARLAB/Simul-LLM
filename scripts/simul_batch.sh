@@ -9,7 +9,7 @@ cd ${ROOT}
 export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
 export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
 
-export PYTHONPATH="${PYHTONPATH}:${ROOT}"
+export PYTHONPATH="${PYTHONPATH}:${ROOT}"
 
 # quantization disabled for inference by default, can be turned back on
 # with --quantize-4bit
@@ -24,7 +24,7 @@ export PYTHONPATH="${PYHTONPATH}:${ROOT}"
 # by default this is set to 'none', but RALCP is supported out of the box:
 # e.g.  --rescorer ralcp --ralcp-thresh 0.6 \
 
-cd cli/simuleval_wrapper.py \
+python cli/simuleval_wrapper.py \
     --agent <PATH_TO_AGENT> \
     --source <PATH_TO_SOURCE_TEXT> \
     --target <PATH_TO_TARGET_TEXT> \
