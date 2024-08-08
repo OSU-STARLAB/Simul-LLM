@@ -85,8 +85,8 @@ class FalconTextAgent(BasicLLMTextAgent):
         return super().policy()
 
     
-    def buffer_commit(self, current_source, current_target):
-        return super().buffer_commit(current_source, current_target)
+    def buffer_commit(self, current_source, current_target, lagging):
+        return super().buffer_commit(current_source, current_target, lagging)
 
 
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):

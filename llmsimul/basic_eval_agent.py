@@ -47,8 +47,16 @@ class BasicLLMTextAgent(TextToTextAgent):
         self.rescorer = args.rescorer
         self.ralcp_thresh = args.ralcp_thresh
 
+        # assertion necessary but a little clunky, revision maybe be TODO
+        assert self.rescorer == "none" or self.decoding_strategy == "multi_word_beam_search", \
+            "Rescorer only supported for multi-word beam search (i.e. chunk-wise SBS and variants)."
+
         self.nmt_prompt = args.nmt_prompt
         self.nmt_augment = args.nmt_augment
+
+        if self.decoding_strategy == "multi_word_beam_search" and self.nmt_prompt:
+            print("Warning: SBS implementations work best out of the box with an NMT styled prompt, not a firmly bounded one" \
+                   + "(i.e. {...} for a single word). May not work out of the box and errors/odd outputs should be expected.", flush=True)
         
         self.write_buffer = Queue()
 
@@ -131,7 +139,7 @@ class BasicLLMTextAgent(TextToTextAgent):
                 
         # useful for multi-word beam search schemes
         if not self.write_buffer.empty():
-            return self.buffer_commit(current_source, current_target) 
+            return self.buffer_commit(current_source, current_target, lagging) 
 
         # currently only set up for waitk, but can be easily replaced
         decision = self.scheduler(len(self.states.source), len(self.states.target))
@@ -146,7 +154,7 @@ class BasicLLMTextAgent(TextToTextAgent):
             elif self.decoding_strategy == "subword_beam_search":
                 model_output = self.make_inference_translation(current_source, current_target, num_beams=self.num_beams)
                 prediction = model_output.strip().strip("{").strip("}").strip().split(' ')[0]
-            elif self.decoding_strategy == "multi_word_beam_search" and not ralcp:
+            elif self.decoding_strategy == "multi_word_beam_search" and self.rescorer == "none":
                 # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
                 model_output = self.make_inference_translation(
                     current_source, 
@@ -218,7 +226,7 @@ class BasicLLMTextAgent(TextToTextAgent):
     """
     Required for multiple consecutive translation decisions during Speculative Beam Search.
     """
-    def buffer_commit(self, current_source, current_target):
+    def buffer_commit(self, current_source, current_target, lagging):
         # prediction management with write buffer
         prediction = self.write_buffer.get()
         prediction_send = prediction
