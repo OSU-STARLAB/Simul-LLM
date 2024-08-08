@@ -1,6 +1,6 @@
 # Simul-LLM
 
-Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to text-to-text simultaneous machine translation (SimulMT). It currently supports Falcon-based models and will imminently support both Llama and Mistral-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
+Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to text-to-text simultaneous machine translation (SimulMT). It currently supports Falcon and Mistral-based models with some support for Llama-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
 
 To work with framework and replicate the environment it was initially constructed in, clone recursively and do the following. 
 
