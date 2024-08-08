@@ -31,6 +31,6 @@ python cli/simuleval_wrapper.py \
     --model <PATH_TO_MODEL> \
     --adapter-path <PATH_TO_PEFT_LORA_CHECKPOINT> \
     --output output_falcon_waitk_3_basic_test \
-    --scheduler waitk --k 3 --source-lang en --target-lang es \
+    --translation-scheduler waitk --k 3 --source-lang en --target-lang es \
     --device cuda --compute-dtype float32 \
     --force-finish \

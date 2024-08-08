@@ -8,7 +8,7 @@
 """
 
 from argparse import Namespace, ArgumentParser
-from translation_scheduler import TranslationScheduler
+from llmsimul.schedulers.translation_scheduler import TranslationScheduler
 
 class WaitkScheduler(TranslationScheduler):
     def __init__(self, args: Namespace):
@@ -19,14 +19,6 @@ class WaitkScheduler(TranslationScheduler):
     def add_args(parser: ArgumentParser):
         parser.add_argument("--k", type=int, default=3)
     
-    def decision(self, *args):
-        src_len = args[0]
-        tgt_len = args[1]
-
-        assert type(src_len) is int and type(tgt_len) is int, "Arguments for WaitK scheduler need to be integers!"
-
-        if len(args) > 2:
-            print("Passed more than two arguments into a WaitK scheduler, was that intended?")
-
+    def __call__(self, src_len: int, tgt_len: int):
         lagging = src_len - tgt_len
         return lagging >= self.k 
