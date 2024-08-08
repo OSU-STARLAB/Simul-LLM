@@ -82,11 +82,11 @@ class FalconTextAgent(BasicLLMTextAgent):
 
     # leaving here in case users want to make any changes
     def policy(self):
-        super().policy()
+        return super().policy()
 
     
     def buffer_commit(self, current_source, current_target):
-        super().buffer_commit(current_source, current_target)
+        return super().buffer_commit(current_source, current_target)
 
 
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):
@@ -107,7 +107,7 @@ class FalconTextAgent(BasicLLMTextAgent):
         else:
             input_prompt = f'<human>: Given the {self.source_lang} sentence {{{source}}}, and the current translation in {self.target_lang} {{{current_translation}}}, what\'s the next translated word? <assistant>: '
 
-        if self.ralcp:
+        if self.rescorer == "ralcp":
             return_seq = num_beams
         else:
             return_seq = 1
@@ -144,10 +144,10 @@ class FalconTextAgent(BasicLLMTextAgent):
             all_output.append(self.tokenizer.decode(outputs[i]))
         #all_output = self.tokenizer.decode(outputs)
         #print(all_output)
-
+        
         # Slice the returned array to remove the input that we fed the model
         # offset of 5 is to account for BOS in Falcon and Llama
-        if not self.ralcp:
+        if not self.rescorer == "ralcp":
             return all_output[0][len(input_prompt):]
         else:
             ralcp_list = []
