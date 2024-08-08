@@ -95,19 +95,24 @@ class BasicLLMTextAgent(TextToTextAgent):
 
     @staticmethod
     def basic_add_args(parser: ArgumentParser):
-        parser.add_argument("--translation-scheduler", type=str, default="waitk")
+        parser.add_argument("--translation-scheduler", type=str, default="waitk",
+                                help="Name of translation scheduler of choice. Wait-k is the default.")
         parser.add_argument("--source-lang", type=str, default="en")
         parser.add_argument("--target-lang", type=str, default="es")
         parser.add_argument("--num-beams", type=int, default=1)
-        parser.add_argument("--num-chunks", type=int, default=1)
-        parser.add_argument("--window-size", type=int, default=10)
-        parser.add_argument("--decoding-strategy", type=str, default="greedy")
+        parser.add_argument("--num-chunks", type=int, default=1,
+                                help="Number of committed words, necessary for chunk-wise SBS and variants.")
+        parser.add_argument("--window-size", type=int, default=10,
+                                help="Defines how far into the future beams are allowed to look. Necessary for SBS and variants.")
+        parser.add_argument("--decoding-strategy", type=str, default="greedy",
+                                help="Dictates how the agent decodes. Options supported out of the box include [greedy, subword_beam_search, multi_word_beam_search].")
         parser.add_argument("--compute-dtype", type=str, default="float32")
         parser.add_argument("--bnb", action="store_true")
         parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
         parser.add_argument("--use-nested-quant", action="store_true")
         parser.add_argument("--force-finish", action="store_true")
-        parser.add_argument("--maximum-length-delta", type=int, default=10)
+        parser.add_argument("--maximum-length-delta", type=int, default=10,
+                                help="Defines how long the agent is allowed to generate before an unacceptable generation delta is observed (i.e. tgt_len - src_len > delta is considered unnaceptable).")
         parser.add_argument("--model", type=str, required=True,
                                 help="Path to your model checkpoint or HuggingFace Hub.")
         parser.add_argument("--adapter-path", type=str,
@@ -190,6 +195,7 @@ class BasicLLMTextAgent(TextToTextAgent):
                 for i in range(1, min(self.num_chunks, len(predictions))):
                     self.write_buffer.put(predictions[i])
             else:
+                print(f"self.decoding_strategy was set to {self.decoding_strategy}, but this is not a defined option. Double check that this was intended and add extra functionality as necessary.")
                 raise NotImplementedError
 
 
