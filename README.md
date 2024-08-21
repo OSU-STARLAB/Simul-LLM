@@ -53,12 +53,16 @@ When in doubt, those attempting to extend this repo's functionality to new LLMs 
 When employing or extending this framework, please consider citing us as:
 
 ```
-@misc{agostinelli2023simulllm,
-      title={Simul-LLM: A Framework for Exploring High-Quality Simultaneous Translation with Large Language Models}, 
-      author={Victor Agostinelli and Max Wild and Matthew Raffel and Kazi Ahmed Asif Fuad and Lizhong Chen},
-      year={2023},
-      eprint={2312.04691},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+@inproceedings{agostinelli-etal-2024-simul,
+    title = "Simul-{LLM}: A Framework for Exploring High-Quality Simultaneous Translation with Large Language Models",
+    author = "Agostinelli, Victor  and Wild, Max  and Raffel, Matthew  and Fuad, Kazi  and Chen, Lizhong",
+    editor = "Ku, Lun-Wei  and Martins, Andre  and Srikumar, Vivek",
+    booktitle = "Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
+    month = aug,
+    year = "2024",
+    address = "Bangkok, Thailand",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.acl-long.567",
+    pages = "10530--10541",
 }
 ```
