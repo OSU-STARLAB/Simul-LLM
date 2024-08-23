@@ -129,10 +129,12 @@ class LLMSimulSFTTrainerWrapper:
                 print("Your GPU supports bfloat16, you can accelerate training with bf16")
                 print("=" * 80)
 
+        # necessary to align compute_dtype with storage val for FSDP to work
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=args.use_4bit,
             bnb_4bit_quant_type=args.bnb_4bit_quant_type,
             bnb_4bit_compute_dtype=compute_dtype,
+            bnb_4bit_quant_storage=compute_dtype,
             bnb_4bit_use_double_quant=args.use_nested_quant,
         )
 

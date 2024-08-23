@@ -8,6 +8,8 @@ from datasets import load_dataset
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
+from accelerate import PartialState
+
 import argparse
 from argparse import ArgumentParser, Namespace
 
@@ -57,11 +59,13 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
 
 
     def setup_model_and_tokenizer(self, args):
+        compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
         self.model = LlamaForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
-            device_map="auto",
+            device_map={'':PartialState().process_index},
             trust_remote_code=True,
+            torch_dtype=compute_dtype,
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -94,6 +98,14 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             formatting_func=formatting,
             args=self.training_arguments,
         )
+
+        # handle PEFT+FSDP case, ripped from a PEFT+QLoRA example
+        if self.peft:
+            if getattr(self.trainer.accelerator.state, "fsdp_plugin", None):
+                from peft.utils.other import fsdp_auto_wrap_policy
+
+                fsdp_plugin = self.trainer.accelerator.state.fsdp_plugin
+                fsdp_plugin.auto_wrap_policy = fsdp_auto_wrap_policy(self.trainer.model)
    
 
     '''
@@ -123,4 +135,8 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
 
     def train(self):
         self.trainer.train()
+
+        # cover FSDP final state, collect it in case state_dict_type wasn't already FULL_STATE_DICT
+        if self.trainer.is_fsdp_enabled:
+            self.trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
         self.trainer.save_model("test-output")
