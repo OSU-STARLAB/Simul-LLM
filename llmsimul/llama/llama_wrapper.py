@@ -4,11 +4,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from transformers import LlamaForCausalLM
 from peft import LoraConfig
 
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
-from accelerate import PartialState
+from accelerate import Accelerator as accelerator, PartialState
 
 import argparse
 from argparse import ArgumentParser, Namespace
@@ -27,9 +27,9 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.nmt_augment = args.nmt_augment
         super().__init__(args)
 
-        print(f"Identified source language as {self.source_lang}, target language as {self.target_lang}")
-        print(f"Prompt structure is NMT: {self.naive_training}")
-        print(f"If NMT prompt structure, prompt is augmented: {self.nmt_augment}")
+        PartialState().print(f"Identified source language as {self.source_lang}, target language as {self.target_lang}")
+        PartialState().print(f"Prompt structure is NMT: {self.naive_training}")
+        PartialState().print(f"If NMT prompt structure, prompt is augmented: {self.nmt_augment}")
 
     
     @classmethod

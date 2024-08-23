@@ -8,6 +8,8 @@ from datasets import load_dataset
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
+from accelerate import PartialState
+
 import argparse
 from argparse import ArgumentParser, Namespace
 
@@ -60,7 +62,7 @@ class MistralSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.model = MistralForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
-            device_map="auto",
+            device_map={'':PartialState().process_index},
             trust_remote_code=True,
         )
 
