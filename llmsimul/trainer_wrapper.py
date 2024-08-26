@@ -173,7 +173,6 @@ class LLMSimulSFTTrainerWrapper:
     def load_dataset(self):
         self.training = load_dataset(self.training_set, split="train")
         self.validation = load_dataset(self.training_set, split="validation")
-        print(self.training)
 
 
     def setup_peft_config(self, args):
