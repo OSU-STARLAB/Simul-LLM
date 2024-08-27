@@ -12,6 +12,7 @@ from accelerate import Accelerator as accelerator, PartialState
 
 import argparse
 from argparse import ArgumentParser, Namespace
+import os
 
 '''
 The below class serves as a general wrapper to SFTTrainer for training simultaneous
@@ -51,6 +52,10 @@ class LLMSimulSFTTrainerWrapper:
         
         if not self.peft:
             PartialState().print(f"Warning: PEFT-LoRA is set to {self.peft}, indicating full model fine-tuning is desirable. This is not recommended for most hardware setups.")
+        
+        self.fsdp = False
+        if os.getenv("ACCELERATE_USE_FSDP"):
+            self.fsdp = True
 
         self.setup_bnb_config(args)
         self.setup_peft_config(args)

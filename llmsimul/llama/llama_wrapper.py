@@ -18,6 +18,8 @@ from argparse import ArgumentParser, Namespace
 
 from llmsimul.trainer_wrapper import LLMSimulSFTTrainerWrapper
 
+import os
+
 '''
 The below class serves as a wrapper for fine-tuning Llama for simultaneous translation
 via SFTTrainer. This extends from LLMSimulSFTTrainerWrapper and implements remaining 
@@ -66,7 +68,7 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.model = LlamaForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
-            device_map=({'':PartialState().process_index} if PartialState().distributed_type == DistributedType.FSDP else "auto"),
+            device_map=({'':PartialState().process_index} if self.fsdp else "auto"),
             trust_remote_code=True,
             torch_dtype=compute_dtype,
         )
@@ -103,7 +105,7 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         )
 
         # handle PEFT+FSDP case, ripped from a PEFT+QLoRA example
-        if self.peft:
+        if self.peft and self.fsdp:
             if getattr(self.trainer.accelerator.state, "fsdp_plugin", None):
                 from peft.utils.other import fsdp_auto_wrap_policy
 
@@ -121,6 +123,10 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
    
 
 '''
+NOTE: cannot easily be a class function when attempting to cache post-processed dataset, especially 
+      problematic during FSDP, because if anything in the class changes the hash of these functions
+      also appears to change
+
 Formatting function takes care of prompt specification for a given LLM and allows the data
 collator to handle our data better. Example sentence at start of wait-3 translation:
 

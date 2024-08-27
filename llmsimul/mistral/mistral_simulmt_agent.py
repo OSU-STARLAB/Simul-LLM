@@ -29,6 +29,7 @@ class MistralTextAgent(BasicLLMTextAgent):
 
     def __init__(self, args: Namespace):
         super().__init__(args)
+        self.end_of_sequence_char = "\s"
        
         
     @staticmethod

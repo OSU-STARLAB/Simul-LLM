@@ -58,11 +58,13 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     
 
     def setup_model_and_tokenizer(self, args):
+        compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
         self.model = FalconForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
-            device_map="auto",
+            device_map=({'':PartialState().process_index} if self.fsdp else "auto"),
             trust_remote_code=True,
+            torch_dtype=compute_dtype,
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -83,7 +85,7 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         formatting = partial(formatting_func, source_lang=self.source_lang, target_lang=self.target_lang) 
         if self.naive_training and not self.nmt_augment:
             formatting = partial(formatting_func_nmt, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target)
-        else:
+        elif self.naive_training and self.nmt_augment:
             formatting = partial(formatting_func_nmt_sep_token, source_lang=self.source_lang, target_lang=self.target_lang)
 
 
@@ -99,12 +101,12 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
-            formatting_func=self.formatting_func,
+            formatting_func=formatting,
             args=self.training_arguments,
         )
         
         # handle PEFT+FSDP case, ripped from a PEFT+QLoRA example
-        if self.peft:
+        if self.peft and self.fsdp:
             if getattr(self.trainer.accelerator.state, "fsdp_plugin", None):
                 from peft.utils.other import fsdp_auto_wrap_policy
 
@@ -122,6 +124,10 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
    
 
 '''
+NOTE: cannot easily be a class function when attempting to cache post-processed dataset, especially 
+      problematic during FSDP, because if anything in the class changes the hash of these functions
+      also appears to change
+
 Formatting function takes care of prompt specification for a given LLM and allows the data
 collator to handle our data better. Example sentence at start of wait-3 translation:
 
