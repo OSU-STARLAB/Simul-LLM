@@ -10,6 +10,10 @@ export HUGGINGFACE_HUB_CACHE="${ROOT}/.cache"
 export HF_DATASETS_CACHE="${ROOT}/.cache/datasets"
 
 export PYTHONPATH="${PYHTHONPATH}:${ROOT}"
+export TOKENIZERS_PARALLELISM="true"
+
+# Optional for FSDP usage, replacing line 18
+# accelerate launch --config_file ${ROOT}/scripts/fsdp_example_config.yaml cli/finetune.py 
 
 python cli/finetune.py \
     --model ybelkada/falcon-7b-sharded-bf16 \

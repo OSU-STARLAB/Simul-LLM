@@ -91,6 +91,8 @@ class BasicLLMTextAgent(TextToTextAgent):
         else:
             raise NotImplementedError
 
+        self.end_of_sequence_char = "endoftext"
+
         self.load_model_and_vocab(args)
 
     @staticmethod
@@ -206,10 +208,10 @@ class BasicLLMTextAgent(TextToTextAgent):
             if "}" in prediction:
                 prediction_send = prediction_send.strip("}")
 
-            if "endoftext" in prediction:
+            if self.end_of_sequence_char in prediction:
                 prediction_send = ""
            
-            finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+            finished = (self.end_of_sequence_char in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
             # logging and account for extra read actions on force finish
             if finished:
@@ -236,12 +238,12 @@ class BasicLLMTextAgent(TextToTextAgent):
         # prediction management with write buffer
         prediction = self.write_buffer.get()
         prediction_send = prediction
-        if "endoftext" in prediction:
+        if self.end_of_sequence_char in prediction:
             prediction_send = ""
         elif "}" in prediction:
             prediction_send = prediction.strip("}")
        
-        finished = ("endoftext" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+        finished = (self.end_of_sequence_char in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
 
         # logging and account for extra read actions on force finish
         if finished:

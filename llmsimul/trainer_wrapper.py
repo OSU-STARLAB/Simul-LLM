@@ -8,10 +8,11 @@ from datasets import load_dataset
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
 
+from accelerate import Accelerator as accelerator, PartialState
+
 import argparse
 from argparse import ArgumentParser, Namespace
-
-
+import os
 
 '''
 The below class serves as a general wrapper to SFTTrainer for training simultaneous
@@ -50,7 +51,11 @@ class LLMSimulSFTTrainerWrapper:
         assert self.source != self.target, "Source and target languages should not be the same."
         
         if not self.peft:
-            print(f"Warning: PEFT-LoRA is set to {self.peft}, indicating full model fine-tuning is desirable. This is not recommended for most hardware setups.")
+            PartialState().print(f"Warning: PEFT-LoRA is set to {self.peft}, indicating full model fine-tuning is desirable. This is not recommended for most hardware setups.")
+        
+        self.fsdp = False
+        if os.getenv("ACCELERATE_USE_FSDP"):
+            self.fsdp = True
 
         self.setup_bnb_config(args)
         self.setup_peft_config(args)
@@ -125,14 +130,16 @@ class LLMSimulSFTTrainerWrapper:
         if compute_dtype == torch.float16 and args.use_4bit:
             major, _ = torch.cuda.get_device_capability()
             if major >= 8:
-                print("=" * 80)
-                print("Your GPU supports bfloat16, you can accelerate training with bf16")
-                print("=" * 80)
+                PartialState().print("=" * 80)
+                PartialState().print("Your GPU supports bfloat16, you can accelerate training with bf16")
+                PartialState().print("=" * 80)
 
+        # necessary to align compute_dtype with storage val for FSDP to work
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=args.use_4bit,
             bnb_4bit_quant_type=args.bnb_4bit_quant_type,
             bnb_4bit_compute_dtype=compute_dtype,
+            bnb_4bit_quant_storage=compute_dtype,
             bnb_4bit_use_double_quant=args.use_nested_quant,
         )
 
@@ -165,7 +172,7 @@ class LLMSimulSFTTrainerWrapper:
             bf16=(args.bnb_4bit_compute_dtype == "bfloat16"),
             #gradient_checkpointing=args.gradient_checkpointing,
         )
-        print(f'fp16: {(args.bnb_4bit_compute_dtype == "float16")}, bf16: {(args.bnb_4bit_compute_dtype == "bfloat16")}')
+        PartialState().print(f'fp16: {(args.bnb_4bit_compute_dtype == "float16")}, bf16: {(args.bnb_4bit_compute_dtype == "bfloat16")}')
 
 
     def load_dataset(self):

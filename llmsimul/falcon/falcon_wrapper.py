@@ -5,8 +5,12 @@ from transformers import FalconForCausalLM
 from peft import LoraConfig
 
 from datasets import load_dataset
+from datasets.fingerprint import Hasher
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from transformers import TrainingArguments
+
+from accelerate import Accelerator as accelerator, PartialState
+from functools import partial
 
 import argparse
 from argparse import ArgumentParser, Namespace
@@ -25,9 +29,9 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         self.nmt_augment = args.nmt_augment
         super().__init__(args)
 
-        print(f"Identified source language as {self.source_lang}, target language as {self.target_lang}")
-        print(f"Prompt structure is NMT: {self.naive_training}")
-        print(f"If NMT prompt structure, prompt is augmented: {self.nmt_augment}")
+        PartialState().print(f"Identified source language as {self.source_lang}, target language as {self.target_lang}")
+        PartialState().print(f"Prompt structure is NMT: {self.naive_training}")
+        PartialState().print(f"If NMT prompt structure, prompt is augmented: {self.nmt_augment}")
 
     
     @classmethod
@@ -52,12 +56,15 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             ],  # , "word_embeddings", "lm_head"],
         )
     
+
     def setup_model_and_tokenizer(self, args):
+        compute_dtype = getattr(torch, args.bnb_4bit_compute_dtype)
         self.model = FalconForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=self.bnb_config if self.bnb else None,
-            device_map="auto",
+            device_map=({'':PartialState().process_index} if self.fsdp else "auto"),
             trust_remote_code=True,
+            torch_dtype=compute_dtype,
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -75,11 +82,11 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
         # potentially enable new token for NMT prompts
-        formatting = self.formatting_func
+        formatting = partial(formatting_func, source_lang=self.source_lang, target_lang=self.target_lang) 
         if self.naive_training and not self.nmt_augment:
-            formatting = self.formatting_func_nmt
-        else:
-            formatting = self.formatting_func_nmt_sep_token
+            formatting = partial(formatting_func_nmt, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target)
+        elif self.naive_training and self.nmt_augment:
+            formatting = partial(formatting_func_nmt_sep_token, source_lang=self.source_lang, target_lang=self.target_lang)
 
 
         if self.adapter_path is not None:
@@ -94,44 +101,61 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
-            formatting_func=self.formatting_func,
+            formatting_func=formatting,
             args=self.training_arguments,
         )
-   
+        
+        # handle PEFT+FSDP case, ripped from a PEFT+QLoRA example
+        if self.peft and self.fsdp:
+            if getattr(self.trainer.accelerator.state, "fsdp_plugin", None):
+                from peft.utils.other import fsdp_auto_wrap_policy
 
-    '''
-    Formatting function takes care of prompt specification for a given LLM and allows the data
-    collator to handle our data better. Example sentence at start of wait-3 translation:
-
-       <human>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
-       what's the next translated word? <assistant>: {Les}
-
-    '''
-
-    def formatting_func(self, example):
-        output_texts = []
-        for i in range(len(example['current_source'])):
-            text = f"<human>: Given the {self.source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {self.target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
-            output_texts.append(text)
-        return output_texts 
-
-    
-    def formatting_func_nmt(self, example):
-        output_texts = []
-        for i in range(len(example[self.source])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example[self.source][i]}}} <assistant>: {example[self.target][i]} <|endoftext|>"
-            output_texts.append(text)
-        return output_texts
-
-
-    def formatting_func_nmt_sep_token(self, example):
-        output_texts = []
-        for i in range(len(example['current_source'])):
-            text = f"<human>: Translate from {self.source_lang} to {self.target_lang}: {{{example['current_source'][i]}}} <assistant>: {example['current_target'][i]}[SEP] {example['target_token'][i]} <|endoftext|>"
-            output_texts.append(text)
-        return output_texts
-
+                fsdp_plugin = self.trainer.accelerator.state.fsdp_plugin
+                fsdp_plugin.auto_wrap_policy = fsdp_auto_wrap_policy(self.trainer.model)
+  
 
     def train(self):
         self.trainer.train()
+        
+        # cover FSDP final state, collect it in case state_dict_type wasn't already FULL_STATE_DICT
+        if self.trainer.is_fsdp_enabled:
+            self.trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
         self.trainer.save_model("test-output")
+   
+
+'''
+NOTE: cannot easily be a class function when attempting to cache post-processed dataset, especially 
+      problematic during FSDP, because if anything in the class changes the hash of these functions
+      also appears to change
+
+Formatting function takes care of prompt specification for a given LLM and allows the data
+collator to handle our data better. Example sentence at start of wait-3 translation:
+
+   <human>: Given the English sentence {I'll tell you}, and the current translation in Spanish {},
+   what's the next translated word? <assistant>: {Les}
+
+'''
+
+def formatting_func(example, source_lang, target_lang):
+    output_texts = []
+    for i in range(len(example['current_source'])):
+        text = f"<human>: Given the {source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <assistant>: {{{example['target_token'][i]}}}"
+        output_texts.append(text)
+    return output_texts 
+
+
+def formatting_func_nmt(example, source_lang, target_lang, source, target):
+    output_texts = []
+    for i in range(len(example[source])):
+        text = f"<human>: Translate from {source_lang} to {target_lang}: {{{example[source][i]}}} <assistant>: {example[target][i]} <|endoftext|>"
+        output_texts.append(text)
+    return output_texts
+
+
+def formatting_func_nmt_sep_token(example, source_lang, target_lang):
+    output_texts = []
+    for i in range(len(example['current_source'])):
+        text = f"<human>: Translate from {source_lang} to {target_lang}: {{{example['current_source'][i]}}} <assistant>: {example['current_target'][i]}[SEP] {example['target_token'][i]} <|endoftext|>"
+        output_texts.append(text)
+    return output_texts
+
