@@ -28,6 +28,7 @@ class LLMSimulSFTTrainerWrapper:
     def __init__(self, args: Namespace):
         self.model_name = args.model
         self.training_set = args.training_set
+        self.training_subset = args.training_subset
         self.source = args.source_lang
         self.target = args.target_lang
         self.peft = args.peft
@@ -36,17 +37,29 @@ class LLMSimulSFTTrainerWrapper:
 
         if self.source == "en":
             self.source_lang = "English"
-        elif self.source == "es":
-            self.source_lang = "Spanish"
         elif self.source == "de":
             self.source_lang = "German"
-        
+        elif self.source == "fr":
+            self.source_lang = "French"
+        elif self.source == "nl":
+            self.source_lang = "Dutch"
+        elif self.source == "ro":
+            self.source_lang = "Romanian"
+        elif self.source == "it":
+            self.source_lang = "Italian"
+
         if self.target == "en":
             self.target_lang = "English"
-        elif self.target == "es":
-            self.target_lang = "Spanish"
         elif self.target == "de":
             self.target_lang = "German"
+        elif self.target == "fr":
+            self.target_lang = "French"
+        elif self.target == "nl":
+            self.target_lang = "Dutch"
+        elif self.target == "ro":
+            self.target_lang = "Romanian"
+        elif self.target == "it":
+            self.target_lang = "Italian"
 
         assert self.source != self.target, "Source and target languages should not be the same."
         
@@ -123,6 +136,18 @@ class LLMSimulSFTTrainerWrapper:
 
         parser.add_argument("--source-lang", type=str, default="en")
         parser.add_argument("--target-lang", type=str, default="es")
+        parser.add_argument("--save-strategy", type=str, default="epoch")
+        parser.add_argument("--num-train-epochs", type=int, default=1)
+        parser.add_argument("--training-subset", type=str, required=False, default="",
+            help="Path to dataset subset you want to use, currently only works with datasets on Huggingface Hub.",
+        )
+        parser.add_argument(
+            "--user-dir",
+            type=str,
+            default=None,
+            required=False,
+            help="The directory to personal project files.",
+        )
 
 
     def setup_bnb_config(self, args):
@@ -176,8 +201,8 @@ class LLMSimulSFTTrainerWrapper:
 
 
     def load_dataset(self):
-        self.training = load_dataset(self.training_set, split="train")
-        self.validation = load_dataset(self.training_set, split="validation")
+        self.training = load_dataset(self.training_set, self.training_subset, split="train")
+        self.validation = load_dataset(self.training_set, self.training_subset, split="validation")
 
 
     def setup_peft_config(self, args):

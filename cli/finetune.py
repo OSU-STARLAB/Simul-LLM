@@ -19,10 +19,16 @@ def main():
 
     if "falcon" in llm.model.lower():
         PartialState().print(f"Identified Falcon as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
-        from llmsimul.falcon.falcon_wrapper import FalconSFTTrainerWrapper
-        FalconSFTTrainerWrapper.add_args(parser)
-        trainer = FalconSFTTrainerWrapper(parser.parse_args())
-        PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+        if llm.user_dir is None:
+            from llmsimul.falcon.falcon_wrapper import FalconSFTTrainerWrapper
+            FalconSFTTrainerWrapper.add_args(parser)
+            trainer = FalconSFTTrainerWrapper(parser.parse_args())
+            PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+        elif llm.user_dir == "examples/simulmask":
+            from examples.simulmask.falcon_wrapper import FalconSFTTrainerWrapper
+            FalconSFTTrainerWrapper.add_args(parser)
+            trainer = FalconSFTTrainerWrapper(parser.parse_args())
+            PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
 
     elif "llama" in llm.model.lower():
         PartialState().print(f"Identified LLaMA as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
@@ -54,6 +60,13 @@ def model_parser():
         default=None,
         required=True,
         help="Path of model that you'd like to finetune, stored on the Huggingface Hub.",
+    )
+    parser.add_argument(
+        "--user-dir",
+        type=str,
+        default=None,
+        required=False,
+        help="The directory to personal project files.",
     )
     return parser
 
