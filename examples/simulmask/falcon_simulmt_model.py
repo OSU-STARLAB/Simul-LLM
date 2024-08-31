@@ -28,6 +28,7 @@ from transformers.modeling_outputs import(
 
 from transformers.generation.utils import GreedySearchOutput
 from transformers.generation.stopping_criteria import StoppingCriteriaList
+from examples.simulmask.utils import build_simul_alibi_tensor, make_mask_batch
 
 logger = logging.get_logger(__name__)
     
@@ -46,60 +47,13 @@ class FalconModelSimulMT(FalconModel):
         self.set_prompt_lengths(kwargs['prompt1'], kwargs['prompt2'])
         if self.use_alibi and not self.no_pos and (self.attmask_type == 'simul') and not self.old_alibi:
             self.h = nn.ModuleList([FalconDecoderLayerSimulMT(config) for _ in range(config.num_hidden_layers)])
-        
-    
+
     def set_prompt_lengths(self, prompt1, prompt2):
         self.tok_prompt1 = self.tokenizer([prompt1], truncation=True, padding=False, max_length=30, return_overflowing_tokens=False, return_length=False) 
         self.tok_prompt2 = self.tokenizer([prompt2], truncation=True, padding=False, max_length=30, return_overflowing_tokens=False, return_length=False)
         self.p1_len = len(self.tok_prompt1["input_ids"][0])
         self.p2_len = len(self.tok_prompt2["input_ids"][0])
 
-    def get_special_index(self, input_ids, token, device):
-        token_ids = self.tokenizer([token], truncation=True, padding=False, max_length=30, return_overflowing_tokens=False, return_length=False) 
-        token_end_idx_list = []
-        for i in range(len(input_ids)):
-            for idx in torch.where(input_ids[i] == token_ids['input_ids'][0][0])[0]:
-                if (token_ids['input_ids'][0] == input_ids[i][idx : idx + len(token_ids['input_ids'][0])].tolist()):
-                    token_end_idx_list.append((idx + len(token_ids['input_ids'][0]) - 1).item())
-            if len(token_end_idx_list) < i+1:
-                token_end_idx_list.append(input_ids.size(1)-1)
-
-        return torch.tensor(token_end_idx_list, device=device)
-
-    def find_lengths(self, input_ids, device):
-        assistant_index = self.get_special_index(input_ids, "\nAssistant:", device)
-        
-        s_lens = assistant_index - self.p1_len - self.p2_len + 1
-
-        eos_index = self.get_special_index(input_ids, "<|endoftext|>", device)
-        
-        t_lens = eos_index - assistant_index
-        t_lens[t_lens < 0] = 0
-        
-        len_dict = {'s_len': s_lens.tolist(), 't_len': t_lens.tolist()}
-
-        t_word_batch = []
-        s_word_batch = []
-        waitk_lens = []
-        for ele, a_i, s_len, t_len in zip(input_ids, assistant_index, s_lens, t_lens):
-            t_word_lens = []
-            s_word_lens = []
-            target = self.tokenizer.decode(ele[a_i:a_i+t_len]).split()
-            source = self.tokenizer.decode(ele[self.p1_len:self.p1_len+s_len]).split()
-            for word in target:
-                t_word_lens.append(len(self.tokenizer(' ' + word).input_ids))
-            for word in source:
-                s_word_lens.append(len(self.tokenizer(' ' + word).input_ids))
-            t_word_batch.append(t_word_lens)
-            s_word_batch.append(s_word_lens)
-            waitk_lens.append(sum(s_word_lens[:self.waitk]))
-        len_dict['t_word_lens'] = t_word_batch
-        len_dict['s_word_lens'] = s_word_batch
-        len_dict['waitk'] = waitk_lens
-
-        len_dict_list = [dict(zip(len_dict.keys(), values)) for values in zip(*len_dict.values())]
-        return len_dict_list
-    
     def _prepare_attn_mask(
         self, attention_mask: torch.Tensor, input_shape: Tuple[int, int], past_key_values_length: int, input_ids: torch.Tensor
     ) -> torch.BoolTensor:
@@ -123,7 +77,7 @@ class FalconModelSimulMT(FalconModel):
             elif self.attmask_type == 'full':
                 combined_attention_mask = None
             else:
-                combined_attention_mask = self.make_mask_batch(input_ids=input_ids, att_len=seq_length, device=device)
+                combined_attention_mask = make_mask_batch(input_ids=input_ids, att_len=seq_length, device=device, p1_len=self.p1_len, p2_len=self.p2_len, tokenizer=self.tokenizer, waitk=self.waitk)
         
         # [batch_size, seq_length + past_key_values_length] -> [batch_size, 1, seq_length, seq_length + past_key_values_length]
         expanded_attn_mask = _expand_mask(attention_mask, past_key_values_length=past_key_values_length)
@@ -132,69 +86,6 @@ class FalconModelSimulMT(FalconModel):
         )
 
         return combined_attention_mask
-
-    def make_mask_batch(self, input_ids, att_len, device):
-        len_dict_list = self.find_lengths(input_ids, device)
-
-        att_mask_list = []
-        for len_dict in len_dict_list:
-            att_mask = self.make_simul_mask(len_dict, att_len, device)
-            att_mask_list.append(att_mask)
-        
-        batch_att_mask = torch.stack(att_mask_list)[:, None, :, :]
-
-        return batch_att_mask
-    
-    def create_uni_tri(self, len_dict, device):
-        s_len, t_len, s_word_lens, t_word_lens, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['s_word_lens'], len_dict['t_word_lens'], len_dict['waitk']
-        tri_mask = torch.zeros((t_len, s_len), dtype=torch.bool, device=device)
-        vert_pos = 0
-        horz_pos = waitk
-        for s_word_len, t_word_len in zip(s_word_lens[self.waitk:], t_word_lens):
-            if vert_pos + t_word_len > t_len or horz_pos+s_word_len > s_len:
-                break
-            tri_mask[vert_pos:vert_pos+t_word_len, horz_pos:] = torch.ones(t_word_len, s_len-horz_pos, dtype=torch.bool, device=device)
-            vert_pos += t_word_len
-            horz_pos += s_word_len
-        return tri_mask
-
-    def make_simul_mask(self, len_dict, att_len, device):
-        s_len, t_len, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['waitk']
-        mask1_pos = self.p1_len
-        mask2_pos = mask1_pos + s_len + self.p2_len
-
-        att_mask = torch.triu(torch.ones((att_len, att_len), dtype=torch.bool, device=device), diagonal=1)
-        
-        if waitk < s_len and t_len != 0:
-            #Creates the attention mask for the target queries and source keys
-            tri_mask = self.create_uni_tri(len_dict, device)
-            att_mask[mask2_pos-1:mask2_pos+t_len-1, mask1_pos:mask1_pos+s_len] = tri_mask
-
-            #Prevent prompt 2 from attending to source
-            if self.p2_len > 1:
-                att_mask[mask1_pos+s_len:mask2_pos-1, mask1_pos+waitk:mask1_pos+s_len] = torch.ones((self.p2_len-1, s_len-waitk), dtype=torch.bool, device=device)
-        
-        return att_mask
-
-    def build_simul_alibi_tensor(self, attention_mask, dtype):
-        closest_power_of_2 = 2 ** math.floor(math.log2(self.num_heads))
-        base = torch.tensor(
-            2 ** (-(2 ** -(math.log2(closest_power_of_2) - 3))), device=attention_mask.device, dtype=torch.float32
-        )
-        powers = torch.arange(1, 1 + closest_power_of_2, device=attention_mask.device, dtype=torch.int32)
-        slopes = torch.pow(base, powers)
-
-        if closest_power_of_2 != self.num_heads:
-            extra_base = torch.tensor(
-                2 ** (-(2 ** -(math.log2(2 * closest_power_of_2) - 3))), device=attention_mask.device, dtype=torch.float32
-            )
-            num_remaining_heads = min(closest_power_of_2, self.num_heads - closest_power_of_2)
-            extra_powers = torch.arange(1, 1 + 2 * num_remaining_heads, 2, device=attention_mask.device, dtype=torch.int32)
-            slopes = torch.cat([slopes, torch.pow(extra_base, extra_powers)], dim=0)
-
-        arange_tensor = ((~attention_mask).cumsum(dim=-1) - 1) * (~attention_mask)
-        alibi = slopes[None, :, None, None].bfloat16() * arange_tensor
-        return alibi.to(dtype)
         
     @add_start_docstrings_to_model_forward(FALCON_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
@@ -275,7 +166,7 @@ class FalconModelSimulMT(FalconModel):
 
         if self.use_alibi:
             if not self.no_pos and self.attmask_type == 'simul' and not self.old_alibi:
-                alibi = self.build_simul_alibi_tensor(causal_mask, dtype=hidden_states.dtype)
+                alibi = build_simul_alibi_tensor(causal_mask, self.num_heads, dtype=hidden_states.dtype)
             else:
                 alibi = build_alibi_tensor(attention_mask, self.num_heads, dtype=hidden_states.dtype)
             if self.no_pos:
@@ -375,16 +266,6 @@ class FalconForCausalLMSimulMT(FalconForCausalLM, FalconPreTrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
-    
-    def get_special_index(self, input_ids, token, device):
-        token_ids = self.tokenizer([token], truncation=True, padding=False, max_length=30, return_overflowing_tokens=False, return_length=False) 
-        token_end_idx_list = [[] for _ in range(len(input_ids))]
-        for i in range(len(input_ids)):
-            for idx in torch.where(input_ids[i] == token_ids['input_ids'][0][0])[0]:
-                if (token_ids['input_ids'][0] == input_ids[i][idx : idx + len(token_ids['input_ids'][0])].tolist()):
-                    token_end_idx_list[i].append((idx + len(token_ids['input_ids'][0]) - 1).item())
-
-        return token_end_idx_list
     
     def forward(
         self,

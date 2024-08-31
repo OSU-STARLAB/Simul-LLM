@@ -5,6 +5,7 @@ from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from argparse import ArgumentParser, Namespace
 from llmsimul.trainer_wrapper import LLMSimulSFTTrainerWrapper
 import os
+from functools import partial
 
 '''
 The below class serves as a wrapper for fine-tuning Falcon for simultaneous translation
@@ -90,6 +91,8 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
 
         self.waitk = args.waitk
 
+        formatting = partial(formatting_func, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target) 
+
         self.trainer = SFTTrainer(
             model=self.model,
             train_dataset=self.training,
@@ -98,25 +101,24 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             max_seq_length=args.max_seq_length,
             tokenizer=self.tokenizer,
             data_collator=collator,
-            formatting_func=self.formatting_func,
+            formatting_func=formatting,
             args=self.training_arguments,
         )
-   
-
-    '''
-    Formatting function takes care of prompt specification for a given LLM and allows the data
-    collator to handle our data better. Designed for the IWSLT 2017 dataset (IWSLT/iwslt2017), but can be adapted.
-    '''
-
-    def formatting_func(self, example):
-        output_texts = []
-        for pair in example['translation']:
-            text = f"Translate the following sentence from {self.source_lang} to {self.target_lang}: {pair[self.source]}\nAssistant: {pair[self.target]}<|endoftext|>"
-            output_texts.append(text)
-            
-        return output_texts 
 
     def train(self):
         self.trainer.train(resume_from_checkpoint=self.resume_from_checkpoint)
         self.trainer.save_model("test-output")
+        
+'''
+Formatting function takes care of prompt specification for a given LLM and allows the data
+collator to handle our data better. Designed for the IWSLT 2017 dataset (IWSLT/iwslt2017), but can be adapted.
+'''
+
+def formatting_func(example, source_lang, target_lang, source, target):
+    output_texts = []
+    for pair in example['translation']:
+        text = f"Translate the following sentence from {source_lang} to {target_lang}: {pair[source]}\nAssistant: {pair[target]}<|endoftext|>"
+        output_texts.append(text)
+        
+    return output_texts 
         
