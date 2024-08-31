@@ -1,6 +1,9 @@
 import torch
 import math
 
+"""
+Finds the index of a specific token in the input_ids tensor.
+"""
 def get_special_index(input_ids, token, device, tokenizer):
     token_ids = tokenizer([token], truncation=True, padding=False, max_length=30, return_overflowing_tokens=False, return_length=False) 
     token_end_idx_list = []
@@ -13,6 +16,9 @@ def get_special_index(input_ids, token, device, tokenizer):
 
     return torch.tensor(token_end_idx_list, device=device)
 
+""""
+Finds the lengths in tokens of the source and target sequences.  Also finds the number of tokens in the first k words of the source sequence.
+"""
 def find_lengths(input_ids, device, p1_len, p2_len, tokenizer, waitk):
     assistant_index = get_special_index(input_ids, "\nAssistant:", device, tokenizer)
     
@@ -47,6 +53,9 @@ def find_lengths(input_ids, device, p1_len, p2_len, tokenizer, waitk):
     len_dict_list = [dict(zip(len_dict.keys(), values)) for values in zip(*len_dict.values())]
     return len_dict_list
 
+"""
+Creates a simulmask for each batch in input_ids.
+"""
 def make_mask_batch(input_ids, att_len, device, p1_len, p2_len, tokenizer, waitk):
         len_dict_list = find_lengths(input_ids, device, p1_len, p2_len, tokenizer, waitk)
 
@@ -58,7 +67,10 @@ def make_mask_batch(input_ids, att_len, device, p1_len, p2_len, tokenizer, waitk
         batch_att_mask = torch.stack(att_mask_list)[:, None, :, :]
 
         return batch_att_mask
-    
+
+"""
+A helper function for constructing the simulmask.
+"""
 def create_uni_tri(len_dict, device):
     s_len, t_len, s_word_lens, t_word_lens, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['s_word_lens'], len_dict['t_word_lens'], len_dict['waitk']
     tri_mask = torch.zeros((t_len, s_len), dtype=torch.bool, device=device)
@@ -72,6 +84,9 @@ def create_uni_tri(len_dict, device):
         horz_pos += s_word_len
     return tri_mask
 
+"""
+Creates a simulmask for a single batch.
+"""
 def make_simul_mask(len_dict, att_len, device, p1_len=0, p2_len=0):
     s_len, t_len, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['waitk']
     mask1_pos = p1_len
@@ -90,6 +105,9 @@ def make_simul_mask(len_dict, att_len, device, p1_len=0, p2_len=0):
     
     return att_mask
 
+"""
+Constructs the modified alibi tensor for the simulmask.
+"""
 def build_simul_alibi_tensor(attention_mask, num_heads, dtype):
     closest_power_of_2 = 2 ** math.floor(math.log2(num_heads))
     base = torch.tensor(
