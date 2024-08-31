@@ -2,6 +2,8 @@
 
 Large language models (LLMs) have achieved state-of-the-art performance in various language processing tasks, motivating their adoption in simultaneous translation. Current finetuning methods to adapt LLMs for simultaneous translation focus on prompting optimization strategies using either data augmentation or prompt structure modifications. However, these methods suffer from several issues, such as unnecessarily expanded training sets, computational inefficiency from dumping the key and value cache, increased prompt sizes, or restriction to a single decision policy. To eliminate these issues, in this work, we propose SimulMask, a new paradigm for fine-tuning LLMs for simultaneous translation. It utilizes a novel attention mask approach that models simultaneous translation during fine-tuning by masking attention for a desired decision policy. Applying the proposed SimulMask on a Falcon LLM for the IWSLT 2017 dataset, we have observed a significant translation quality improvement compared to state-of-the-art prompting optimization strategies on five language pairs while reducing the computational cost.
 
+---
+
 ## Fine-tuning
 
 The script used to fine-tune a falcon-1.3B model using SimulMask is provided below.  
@@ -26,6 +28,8 @@ The model checkpoints fine-tuned at wait-9 and evaluated at wait-5 are provided 
 | ----- | ----- | ----- |
 | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-fr) | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-nl) | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-it) |
 
+---
+
 ## Evaluation
 The script used to evaluate a fine-tuned falcon-1.3B model is provided below.
 
@@ -40,10 +44,32 @@ python3 cli/simuleval_wrapper.py \
     --waitk 5 --device cuda --attmask-type causal \
     --compute-dtype bfloat16 --quality-metric BLEU CHRF \
 ```
+---
+
+## Results
+
+### Translation Quality and Latency Results
+
+The LLM Fine-tuned with SimulMask outperforms or matches alternative approaches in terms of translation quality.
+
+| English-French | English-Dutch  | English-Italian  |
+|---------|---------|---------|
+| ![English-French](Figures/en-fr.png) | ![English-Dutch](Figures/en-nl.png) | ![English-Italian](Figures/en-it.png) |
+
+---
+### Computational Saving Results
+
+Fine-tuning an LLM with SimulMask reduces training time compared to alternative approaches.
+
+<img src="Figures/training_computation.png" alt="training" width="350"> 
+
+The LLM fine-tuned with SimulMask performs inference at a reduced computational cost compared to alternative approaches.
+
+<img src="Figures/inference_computation.png" alt="inference" width="350"> 
 
 ---
 
-### Citation
+## Citation
 
 When employing or extending SimulMask, please consider citing us as:
 
