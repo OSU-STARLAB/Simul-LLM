@@ -10,13 +10,14 @@ from llmsimul.schedulers.waitk import WaitkScheduler
 import whisper
 import numpy
 
+from examples.basic_speech_to_text.falcon_dummy_text_agent import DummyFalconTextAgent
+
 """
     Based on the example found in SimulEval for a similar agent, but adapted to
     align more closely with the construction of typical agents in Simul-LLM in addition
     to being a bit more modular.
 """
 
-@entrypoint
 class WaitkWhisperAgent(SpeechToTextAgent):
     """
     The agent derives the number of seconds from input audio and provided sampling info.
@@ -24,11 +25,14 @@ class WaitkWhisperAgent(SpeechToTextAgent):
 
     def __init__(self, args):
         super().__init__(args)
-        self.source_segment_size = args.source_segment_size
-        self.source_language = args.source_language
-        self.continuous_write = args.continuous_write
+        self.source_lang = args.source_lang
         self.model_size = args.model_size
         
+        # reuse translation scheduler for this example, easy to change
+        # in this example, waitk structure is based on segment size
+        self.translation_scheduler = args.translation_scheduler
+        self.source_segment_size = args.source_segment_size
+
         # only waitk implemented, but easy to replace with other options
         # we assume for waitk whisper that this is the only scheduler we would
         # really use
@@ -36,18 +40,24 @@ class WaitkWhisperAgent(SpeechToTextAgent):
             self.scheduler = WaitkScheduler(args)
         else:
             raise NotImplementedError
-        
+       
+        if not self.source_lang == "en":
+            print(f"Source language set to {self.source_lang}, double check that you're loading a multilingual Whisper model.")
+
         self.model = whisper.load_model(self.model_size)
+
 
     @staticmethod
     def add_args(parser):
-        parser.add_argument("--translation-scheduler", type=str, default="waitk",
-                                help="Name of translation scheduler of choice. Wait-k is the default.")
-        parser.add_argument("--source-lang", default="en", type=str)
         parser.add_argument("--model-size", default="tiny", type=str)
         
-        # entrance for schedulers
-        WaitkScheduler.add_args(parser)
+        # entrance for schedulers, normally necessary but removed for now
+        # due to having to import add_args from other agents in pipeline
+        # WaitkScheduler.add_args(parser)
+
+        # temporary solution, have to add_args for non-entrypoint agents
+        # takes care of args.source_lang and args.translation_scheduler
+        # DummyFalconTextAgent.add_args(parser)
 
 
     def policy(self, states: Optional[AgentStates] = None):
@@ -61,7 +71,7 @@ class WaitkWhisperAgent(SpeechToTextAgent):
         else:
             length_in_seconds = float(len(states.source)) / states.source_sample_rate
 
-        previous_translation = " ".join(states.target)
+        previous_transcription = " ".join(states.target)
 
         decision = self.scheduler(length_in_seconds * 1000 / self.source_segment_size, len(states.target))
 
@@ -69,11 +79,11 @@ class WaitkWhisperAgent(SpeechToTextAgent):
             if not decision:
                 return ReadAction()
 
-        previous_translation = " ".join(states.target)
-        # We use the previous translation as a prefix.
+        previous_transcription = " ".join(states.target)
+        # We use the previous transcription as a prefix.
         options = whisper.DecodingOptions(
-            prefix=previous_translation,
-            language=self.source_language,
+            prefix=previous_transcription,
+            language=self.source_lang,
             without_timestamps=True,
             fp16=False,
         )
@@ -82,9 +92,16 @@ class WaitkWhisperAgent(SpeechToTextAgent):
         audio = whisper.pad_or_trim(numpy.array(states.source).astype("float32"))
         mel = whisper.log_mel_spectrogram(audio).to(self.model.device)
         output = self.model.decode(mel, options)
-        prediction = output.text.split()[len(states.target):len(states.target) + 1]
+        
+        # force only a single outputted word for strict k-lagging factor, can easily be set up
+        # with a blockwise output where multiple are written at once or a buffer enables
+        # more efficient computation
+        if len(output.text.split()) == len(states.target):
+            prediction = []
+        else:
+            prediction = output.text.split()[len(states.target):len(states.target) + 1]
 
         return WriteAction(
             content=" ".join(prediction),
-            finished=states.source_finished,
+            finished=(states.source_finished and (len(output.text.split()) == len(states.target))),
         )
