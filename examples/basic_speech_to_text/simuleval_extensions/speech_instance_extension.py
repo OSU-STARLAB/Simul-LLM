@@ -6,8 +6,11 @@ from llmsimul.simuleval_extensions.instance_extensions import *
     to manage strict latency requirements of maintaining k-lagging factor. 
 
     Only major difference is the renaming of `self.source_finished_reading` to the
-    variable `self.invisible_source_finished_reading`
+    variable `self.invisible_source_finished_reading`, this avoids the SimulEval
+    evaluator from reading the aforementioned variable and signalling an earlier end
+    to evaluation than expected, resulting in aberrant behavior.
 """
+
 class CustomSpeechInputInstance(Instance):
     def __init__(
         self,

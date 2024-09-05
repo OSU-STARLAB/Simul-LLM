@@ -1,14 +1,35 @@
 # Example Pipeline of Simultaneous Speech-to-Text Translation (SimulST) with LLMs
 
-SimulST is a natural next step for LLM usage in simultaneous translation, and we provide an example pipeline with additional extensions here. This particular pipeline utilizes Whisper models for transcription before feeding the transcription to existing evaluation agents in Simul-LLM, using LLMs fine-tuned for NMT or SimulMT. 
+SimulST is a natural next step for LLM usage in simultaneous translation, and we provide an example pipeline with additional extensions here. This particular pipeline utilizes Whisper models for transcription before feeding the transcription to existing evaluation agents in Simul-LLM, using LLMs fine-tuned for NMT or SimulMT. For this example, no further fine-tuning is necessary (although tweaking to the NMT or SimulMT fine-tuning pipeline to mirror transcription characteristics, i.e. significant noise, might help), so we only provide information related to evaluation.
 
-For this example, no further fine-tuning is necessary (although tweaking to the NMT or SimulMT fine-tuning pipeline to mirror transcription characteristics, i.e. significant noise, might help), so we only provide information related to evaluation.
+Some additional packages are required for running this example and preprocessing MuST-C datasets, and they can be installed in the following fashion, assuming relevant environment variables are set correctly.
+
+```
+pip install -r ${ROOT}/examples/basic_speech_to_text/requirements.txt
+```
 
 ---
 
 ## Preprocessing
 
-To be added soon, based on fairseq MuST-C preprocessing scripts...
+MuST-C preprocessing scripts are provided in `data/` and are essentially copied from those used in [fairseq](https://github.com/facebookresearch/fairseq). Running the following script should correctly preprocess a given MuST-C split, assuming the dataset has already been unzipped.
+
+```bash
+export ROOT=<PATH_TO_ROOT>
+export VENV_ROOT=<PATH_TO_VENV_ROOT>
+export DATA_ROOT=<PATH_TO_DATA_ROOT>
+export TGT_LANG=<TGT_LANG_OF_CHOICE>
+
+python ${ROOT}/examples/basic_speech_to_text/data/prep_mustc_data.py \
+      --data-root ${DATA_ROOT} --task asr  --langs-to-process ${TGT_LANG} \
+      --vocab-type unigram --vocab-size 10000 \
+      --cmvn-type global
+
+python ${FAIRSEQ_ROOT_LIN}/examples/speech_to_text/prep_mustc_data.py \
+      --data-root ${DATA_ROOT} --task st  --langs-to-process ${TGT_LANG} \
+      --vocab-type unigram --vocab-size 10000 \
+      --cmvn-type global
+```
 
 ---
 

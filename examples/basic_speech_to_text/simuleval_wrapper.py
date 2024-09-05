@@ -2,6 +2,9 @@
 Command-line interface for simultaneous LLM evaluation.
 Just sets up up some optional modules and imports them before,
 calling SimulEval.
+
+Fresh wrapper provided here to avoid having to import example
+in main cli interface.
 """
 
 from llmsimul.simuleval_extensions.instance_extensions import *
