@@ -23,7 +23,7 @@ from examples.basic_speech_to_text.falcon_dummy_text_agent import DummyFalconTex
 
 class WaitkWhisperAgent(SpeechToTextAgent):
     
-    source_type: str = "speech"
+    source_type: str = "custom-speech"
     target_type: str = "comp-text"
 
     """
@@ -82,9 +82,8 @@ class WaitkWhisperAgent(SpeechToTextAgent):
 
         decision = self.scheduler(length_in_seconds * 1000 / self.source_segment_size, len(states.target))
 
-        if not states.source_finished:
-            if not decision:
-                return ReadAction()
+        if not states.source_finished and not decision:
+            return ReadAction()
 
         previous_transcription = " ".join(states.target)
         # We use the previous transcription as a prefix.
@@ -100,15 +99,17 @@ class WaitkWhisperAgent(SpeechToTextAgent):
         mel = whisper.log_mel_spectrogram(audio).to(self.model.device)
         output = self.model.decode(mel, options)
         
+        print(output.text.split())
+
         # force only a single outputted word for strict k-lagging factor, can easily be set up
         # with a blockwise output where multiple are written at once or a buffer enables
         # more efficient computation
-        if len(output.text.split()) == len(states.target):
-            prediction = []
+        if len(output.text.split()) > 0:
+            prediction = output.text.split()[:1]
         else:
-            prediction = output.text.split()[len(states.target):len(states.target) + 1]
+            prediction = []
 
         return WriteAction(
             content=" ".join(prediction),
-            finished=(states.source_finished and (len(output.text.split()) == len(states.target))),
+            finished=(states.source_finished and len(output.text.split()) == 1),
         )
