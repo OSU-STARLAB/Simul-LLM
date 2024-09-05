@@ -6,6 +6,12 @@ For this example, no further fine-tuning is necessary (although tweaking to the 
 
 ---
 
+## Preprocessing
+
+To be added soon, based on fairseq MuST-C preprocessing scripts...
+
+---
+
 ## Evaluation
 
 The following script is employed to evaluate a Falcon-based model fine-tuned for NMT and normally used for SimulMT evaluations.
@@ -40,7 +46,7 @@ python examples/basic_speech_to_text/simuleval_wrapper.py \
     --force-finish \
 ```
 
-On an extremely small, reduced test set from MuST-C, the following results were achieved (latency metrics are non-CA):
+On an extremely small, reduced test set from MuST-C for en-es, the following preliminary results were achieved (latency metrics are non-CA):
 
 | BLEU | LAAL | AL | AP | DAL | ATD |
 |------|------|----|----|-----|-----|
