@@ -1,8 +1,8 @@
 from typing import Optional
 from simuleval.agents.states import AgentStates
 from simuleval.utils import entrypoint
-from simuleval.data.segments import SpeechSegment
 from simuleval.agents import SpeechToTextAgent
+from simuleval.data.segments import SpeechSegment
 from simuleval.agents.actions import WriteAction, ReadAction
 
 from llmsimul.schedulers.waitk import WaitkScheduler
@@ -16,9 +16,16 @@ from examples.basic_speech_to_text.falcon_dummy_text_agent import DummyFalconTex
     Based on the example found in SimulEval for a similar agent, but adapted to
     align more closely with the construction of typical agents in Simul-LLM in addition
     to being a bit more modular.
+
+    Target_type must be set to comp-text for pipeline compatibility with agents elsewhere
+    in the framework, e.g. Falcon-based agents.
 """
 
 class WaitkWhisperAgent(SpeechToTextAgent):
+    
+    source_type: str = "speech"
+    target_type: str = "comp-text"
+
     """
     The agent derives the number of seconds from input audio and provided sampling info.
     """
