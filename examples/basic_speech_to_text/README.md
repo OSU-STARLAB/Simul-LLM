@@ -19,16 +19,22 @@ export ROOT=<PATH_TO_ROOT>
 export VENV_ROOT=<PATH_TO_VENV_ROOT>
 export DATA_ROOT=<PATH_TO_DATA_ROOT>
 export TGT_LANG=<TGT_LANG_OF_CHOICE>
+export WAV_AND_TARGET_LIST=<PATH_TO_DIR_FOR_WAV_AND_TARGET_LIST>
 
 python ${ROOT}/examples/basic_speech_to_text/data/prep_mustc_data.py \
       --data-root ${DATA_ROOT} --task asr  --langs-to-process ${TGT_LANG} \
       --vocab-type unigram --vocab-size 10000 \
       --cmvn-type global
 
-python ${FAIRSEQ_ROOT_LIN}/examples/speech_to_text/prep_mustc_data.py \
+python ${ROOT}/examples/basic_speech_to_text/data/prep_mustc_data.py \
       --data-root ${DATA_ROOT} --task st  --langs-to-process ${TGT_LANG} \
       --vocab-type unigram --vocab-size 10000 \
       --cmvn-type global
+
+python ${ROOT}/examples/basic_speech_to_text/seg_mustc_data.py \
+      --data-root ${DATA_ROOT} --lang ${TGT_LANG} \
+      --split tst-COMMON --task st \
+      --output ${WAV_AND_TARGET_LIST}
 ```
 
 ---
@@ -64,7 +70,7 @@ python examples/basic_speech_to_text/simuleval_wrapper.py \
     --device cuda --compute-dtype float32 \
     --nmt-prompt \
     --model-size tiny --source-segment-size 500 \
-    --force-finish \
+    --force-finish
 ```
 
 On an extremely small, reduced test set from MuST-C for en-es, the following preliminary results were achieved (latency metrics are non-CA):
