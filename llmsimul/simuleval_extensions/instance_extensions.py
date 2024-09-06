@@ -19,4 +19,11 @@ class CompTextInputInstance(TextInputInstance):
 class CompTextToTextInstance(CompTextInputInstance, TextOutputInstance):
     pass
 
+class CompTextOutputInstance(TextOutputInstance):
+    pass
+
+class SpeechToCompTextInstance(SpeechInputInstance, CompTextOutputInstance):
+    pass
+
 INSTANCE_TYPE_DICT["comp-text-text"] = CompTextToTextInstance
+INSTANCE_TYPE_DICT["speech-comp-text"] = SpeechToCompTextInstance
