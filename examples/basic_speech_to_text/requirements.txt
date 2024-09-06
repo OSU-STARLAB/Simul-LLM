@@ -2,3 +2,5 @@ pathlib>=1.0.1
 sentencepiece>=0.2.0
 soundfile>=0.12.1
 logging>=0.4.9.6
+torchaudio==2.2.0
+git+https://github.com/openai/whisper.git 
