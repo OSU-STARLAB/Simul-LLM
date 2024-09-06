@@ -8,7 +8,7 @@ import argparse
 import logging
 from pathlib import Path
 import soundfile as sf
-from examples.basic_speech_to_text.prep_mustc_data import (
+from examples.basic_speech_to_text.data.prep_mustc_data import (
     MUSTC
 )
 

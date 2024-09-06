@@ -12,7 +12,7 @@ pip install -r ${ROOT}/examples/basic_speech_to_text/requirements.txt
 
 ## Preprocessing
 
-MuST-C preprocessing scripts are provided in `data/` and are essentially copied from those used in [fairseq](https://github.com/facebookresearch/fairseq). Running the following script should correctly preprocess a given MuST-C split, assuming the dataset has already been unzipped.
+MuST-C preprocessing scripts are provided in `data/` and are essentially copied from those used in [fairseq](https://github.com/facebookresearch/fairseq). Running the following script should correctly preprocess a given MuST-C split, assuming the dataset has already been unzipped. Note that this will do quite a bit more than just prep the necessary test set WAV files in that it will also prep the entire dataset (including the training and validation sets) for end-to-end training.
 
 ```bash
 export ROOT=<PATH_TO_ROOT>
@@ -22,16 +22,16 @@ export TGT_LANG=<TGT_LANG_OF_CHOICE>
 export WAV_AND_TARGET_LIST=<PATH_TO_DIR_FOR_WAV_AND_TARGET_LIST>
 
 python ${ROOT}/examples/basic_speech_to_text/data/prep_mustc_data.py \
-      --data-root ${DATA_ROOT} --task asr  --langs-to-process ${TGT_LANG} \
+      --data-root ${DATA_ROOT} --task asr --langs-to-process ${TGT_LANG} \
       --vocab-type unigram --vocab-size 10000 \
       --cmvn-type global
 
 python ${ROOT}/examples/basic_speech_to_text/data/prep_mustc_data.py \
-      --data-root ${DATA_ROOT} --task st  --langs-to-process ${TGT_LANG} \
+      --data-root ${DATA_ROOT} --task st --langs-to-process ${TGT_LANG} \
       --vocab-type unigram --vocab-size 10000 \
       --cmvn-type global
 
-python ${ROOT}/examples/basic_speech_to_text/seg_mustc_data.py \
+python ${ROOT}/examples/basic_speech_to_text/data/seg_mustc_data.py \
       --data-root ${DATA_ROOT} --lang ${TGT_LANG} \
       --split tst-COMMON --task st \
       --output ${WAV_AND_TARGET_LIST}
