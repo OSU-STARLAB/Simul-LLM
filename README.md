@@ -25,8 +25,10 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 
 ### What's New?
 
+- September 2024: SimulMask is accepted to EMNLP '24, hosted in Miami, Florida!
 - September 2024: Example simultaneous speech-to-text translation (SimulST) pipeline available [here](examples/basic_speech_to_text).
 - August 2024: Official implementation of SimulMask available [here](examples/simulmask)! Preprint for Simulmask available [here](https://arxiv.org/abs/2405.10443).
+- May 2024: Simul-LLM is accepted to ACL '24, hosted in Bangkok, Thailand!
 
 ---
 
