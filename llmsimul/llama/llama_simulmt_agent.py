@@ -14,87 +14,30 @@ from peft import LoraConfig, AutoPeftModelForCausalLM
 from transformers.generation.stopping_criteria import StoppingCriteria
 from llmsimul.llama.llama_stopping_criteria import StopTokenAndMaxLengthCriteria
 
+from llmsimul.schedulers.waitk import WaitkScheduler
+
+from llmsimul.utils_and_misc.beam_rescoring import ralcp_sort, rescoring_add_args
+
+from llmsimul.basic_eval_agent import BasicLLMTextAgent
+
 @entrypoint
-class LlamaWaitkTextAgent(TextToTextAgent):
+class LlamaTextAgent(BasicLLMTextAgent):
 
     source_type: str = "comp-text"
     target_type: str = "text"
 
+
     def __init__(self, args: Namespace):
         super().__init__(args)
-        self.waitk = args.waitk
-        self.decoding_strategy = args.decoding_strategy
-        self.device = args.device
-        self.bnb = args.bnb
-        self.num_beams = args.num_beams
-        self.num_chunks = args.num_chunks
-        self.window_size = args.window_size
-        self.force_finish = args.force_finish
-        self.maximum_length_delta = args.maximum_length_delta
-        
-        # experimental RALCP arguments
-        self.ralcp = args.ralcp
-        self.ralcp_thresh = args.ralcp_thresh
-
-        self.nmt_prompt = args.nmt_prompt
-        self.nmt_augment = args.nmt_augment
-        
-        self.write_buffer = Queue()
-
-        if args.source_lang== "en":
-            self.source_lang = "English"
-        elif args.source_lang== "es":
-            self.source_lang = "Spanish"
-        elif args.source_lang== "de":
-            self.source_lang = "German"
-        
-        if args.target_lang== "en":
-            self.target_lang = "English"
-        elif args.target_lang== "es":
-            self.target_lang = "Spanish"
-        elif args.target_lang== "de":
-            self.target_lang = "German"
-
-        if args.compute_dtype == "float32":
-            self.compute_dtype = torch.float32
-        elif args.compute_dtype == "float16":
-            self.compute_dtype = torch.float16
-        elif args.compute_dtype == "bfloat16":
-            self.compute_dtype = torch.bfloat16
-        elif args.compute_dtype == "float8":
-            self.compute_dtype = torch.float8
-
-        print(f"Identified source language as {self.source_lang} and target language as {self.target_lang}. Computing in {self.compute_dtype} for inference.")
-
-        self.load_model_and_vocab(args)
+        self.end_of_sequence_char = "end_of_text"
+       
         
     @staticmethod
     def add_args(parser: ArgumentParser):
-        parser.add_argument("--waitk", type=int, default=3)
-        parser.add_argument("--source-lang", type=str, default="en")
-        parser.add_argument("--target-lang", type=str, default="es")
-        parser.add_argument("--num-beams", type=int, default=1)
-        parser.add_argument("--num-chunks", type=int, default=1)
-        parser.add_argument("--window-size", type=int, default=10)
-        parser.add_argument("--decoding-strategy", type=str, default="greedy")
-        parser.add_argument("--ralcp", action="store_true")
-        parser.add_argument("--ralcp-thresh", type=float, default=0.6)
-        parser.add_argument("--compute-dtype", type=str, default="float32")
-        parser.add_argument("--bnb", action="store_true")
-        parser.add_argument("--bnb-4bit-quant-type", type=str, default="nf4")
-        parser.add_argument("--use-nested-quant", action="store_true")
-        parser.add_argument("--force-finish", action="store_true")
-        parser.add_argument("--maximum-length-delta", type=int, default=10)
-        parser.add_argument("--model", type=str, required=True,
-                                help="Path to your model checkpoint or HuggingFace Hub.")
-        parser.add_argument("--adapter-path", type=str,
-                                help="Path to your PEFT-LoRA checkpoint. Highly recommended.")
-        parser.add_argument("--nmt-prompt", action="store_true",
-                                help="Enables NMT prompt formatting for basic NMT fine-tuning.")
-        parser.add_argument("--nmt-augment", action="store_true",
-                                help="Enables NMT prompt augmented with SimulMT behavior.")
+        BasicLLMTextAgent.basic_add_args(parser)
 
 
+    # sometimes has quirks that are LLM-specific, so we implement here
     def load_model_and_vocab(self, args):
         # load model, quantize on extremely memory constrained rigs
         if self.bnb:
@@ -123,141 +66,30 @@ class LlamaWaitkTextAgent(TextToTextAgent):
                 trust_remote_code=True,
             )
 
-        # load PEFT checkpoint
-        if args.adapter_path is not None:
-            self.model.load_adapter(args.adapter_path)
-        else:
-            print("No PEFT-LoRA adapter path was provided, this is not recommended for most hardware setups and indicates full mode fine-tuning was done.")
-
         # load tokenizer, could also enable local loading
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
-        # based on a log that warned we should use left padding? 
-        self.tokenizer.padding_side = 'left'
-        
         self.model.resize_token_embeddings(len(self.tokenizer))
-        self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
-    
-
-    # determines READ/WRITE behavior
-    def policy(self):
-        lagging = len(self.states.source) - len(self.states.target)
-        current_source = " ".join(self.states.source)
-        current_target = " ".join(self.states.target)
-
-        # dealing with a white space edge case
-        current_target = " ".join(current_target.split())
-                
-        # useful for multi-word beam search schemes
-        if not self.write_buffer.empty():
-            return self.buffer_commit(current_source, current_target) 
-
-        if lagging >= self.waitk or self.states.source_finished:
-            if self.nmt_prompt and self.decoding_strategy == "greedy":
-                model_output = self.make_inference_translation(current_source, current_target)
-                prediction = model_output.strip().strip("{").split(' ')[0]
-            elif self.decoding_strategy == "greedy":
-                model_output = self.make_inference_translation(current_source, current_target)
-                prediction = model_output.strip().strip("{").strip("}").strip().split(' ')[0]
-            elif self.decoding_strategy == "subword_beam_search":
-                model_output = self.make_inference_translation(current_source, current_target, num_beams=self.num_beams)
-                prediction = model_output.strip().strip("{").strip("}").strip().split(' ')[0]
-            elif self.decoding_strategy == "multi_word_beam_search" and not ralcp:
-                # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
-                model_output = self.make_inference_translation(
-                    current_source, 
-                    current_target, 
-                    num_beams=self.num_beams, 
-                    num_chunks=self.num_chunks, 
-                    window_size=self.window_size if not self.states.source_finished else 100,
-                )
-                model_output = model_output.strip().strip("{").strip("}").strip().split(' ')
-                prediction = model_output[0]
-                for i in range(1, min(self.num_chunks, len(model_output))):
-                    self.write_buffer.put(model_output[i])
-            elif self.decoding_strategy == "multi_word_beam_search" and self.ralcp:
-                # small fix for no trailing beam behavior for SBS, 100 window size is arbitrary
-                model_output = self.make_inference_translation(
-                        current_source,
-                        current_target,
-                        num_beams=self.num_beams,
-                        num_chunks=self.num_chunks,
-                        window_size=self.window_size if not self.states.source_finished else 100,
-                )
-                new_list = []
-                for i in range(len(model_output)):
-                    new_list.append(model_output[i].strip().strip("{").split(' '))
-                predictions = self.ralcp_sort(new_list)
-                prediction = predictions[0]
-                for i in range(1, min(self.num_chunks, len(predictions))):
-                    self.write_buffer.put(predictions[i])
-            else:
-                raise NotImplementedError
-
-
-            # handle some edge cases, don't want these in translation of course
-            prediction_send = prediction
-            
-            # looks redundant, but covering an edge case issue
-            if "}" in prediction:
-                prediction_send = prediction_send.strip("}")
-
-            if "\\s" in prediction:
-                prediction_send = ""
-           
-            finished = ("\\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
-
-            # logging and account for extra read actions on force finish
-            if finished:
-
-                # covers buffer edge case
-                while not self.write_buffer.empty():
-                    self.write_buffer.get()
-
-                print(f"Finished sentence: \n\tSource: '{current_source}'\n\t Target: '{current_target + ' ' + prediction_send}'", flush=True)
-            elif prediction_send == "" and (self.force_finish and not self.states.source_finished):
-                return ReadAction()
-
-
-            # will need to modify finish condition at a later date
-            return WriteAction(prediction_send, finished=finished)
+        
+        # load PEFT checkpoint
+        if args.adapter_path is not None:
+            self.model.load_adapter(args.adapter_path)
         else:
-            return ReadAction()
+            print("No PEFT-LoRA adapter path was provided, this is not recommended for most hardware setups and indicates full model fine-tuning was done.")
+
+        self.eoseq_ids = self.tokenizer("}", return_tensors="pt").input_ids.to(self.device)
 
 
-    ''' 
-    Required for multiple consecutive translation decisions during Speculative Beam Search.
-    '''
-    def buffer_commit(self, current_source, current_target):
-        # prediction management with write buffer
-        prediction = self.write_buffer.get()
-        prediction_send = prediction
-        if "\\s" in prediction:
-            prediction_send = ""
-        elif "}" in prediction:
-            prediction_send = prediction.strip("}")
-       
-        finished = ("\\s" in prediction or "}" in prediction or lagging < -self.maximum_length_delta) and (not self.force_finish or self.states.source_finished)
+    # leaving here in case users want to make any changes
+    def policy(self):
+        return super().policy()
 
-        # logging and account for extra read actions on force finish
-        if finished:
-            while not self.write_buffer.empty():
-                self.write_buffer.get()
-            print(f"Finished sentence: \n\tSource: '{current_source}'\n\t Target: '{current_target + ' ' + prediction}'", flush=True)
-        elif prediction_send == "" and (self.force_finish and not self.states.source_finished):
-            # flush the buffer
-            while not self.write_buffer.empty():
-                self.write_buffer.get()
-            return ReadAction()
-
-        # will need to modify finish condition at a later date
-        return WriteAction(prediction_send, finished=finished)
+    
+    def buffer_commit(self, current_source, current_target, lagging):
+        return super().buffer_commit(current_source, current_target, lagging)
 
 
-    ''' 
-    The following functions are entirely the design of Max Wild and detail translation wrappers for Llama 
-    '''
     def make_inference_translation(self, source, current_translation, num_beams=1, num_chunks=1, window_size=10):
         """
         Call upon a specific model to do a translation request, the model input
@@ -267,14 +99,16 @@ class LlamaWaitkTextAgent(TextToTextAgent):
         if current_translation is None:
             current_translation = ' '
 
+        # unclear if llama models really require specific "human" and "assistant" tokens/setup, seem to perform
+        # fine regardless of these values
         if self.nmt_prompt and not self.nmt_augment:
-            input_prompt = f'<h>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <a>: {current_translation}'
+            input_prompt = f'<|start_header_id|>user<|end_header_id|>\nTranslate from {self.source_lang} to {self.target_lang}: {{{source}}} <|start_header_id|>assistant<|end_header_id|>\n{current_translation}'
         elif self.nmt_prompt and self.nmt_augment:
-            input_prompt = f'<human>: Translate from {self.source_lang} to {self.target_lang}: {{{source}}} <assistant>: {current_translation} [SEP] '
+            input_prompt = f'<|start_header_id|>user<|end_header_id|>\nTranslate from {self.source_lang} to {self.target_lang}: {{{source}}} <|start_header_id|>assistant<|end_header_id|>\n{current_translation} [SEP] '
         else:
-            input_prompt = f'<human>: Given the {self.source_lang} sentence {{{source}}}, and the current translation in {self.target_lang} {{{current_translation}}}, what\'s the next translated word? <assistant>: '
+            input_prompt = f'<|start_header_id|>user<|end_header_id|>\nGiven the {self.source_lang} sentence {{{source}}}, and the current translation in {self.target_lang} {{{current_translation}}}, what\'s the next translated word? <|start_header_id|>assistant<|end_header_id|>\n'
 
-        if self.ralcp:
+        if self.rescorer == "ralcp":
             return_seq = num_beams
         else:
             return_seq = 1
@@ -313,8 +147,8 @@ class LlamaWaitkTextAgent(TextToTextAgent):
         #print(all_output)
 
         # Slice the returned array to remove the input that we fed the model
-        # offset of 5 is to account for BOS in Llama and Mistral
-        if not self.ralcp:
+        # offset of 5 is to account for BOS in Llama and Llama
+        if not self.rescorer == "ralcp":
             return all_output[0][len(input_prompt) + 5:]
         else:
             ralcp_list = []
@@ -322,54 +156,3 @@ class LlamaWaitkTextAgent(TextToTextAgent):
                 ralcp_list.append(all_output[i][len(input_prompt) + 5:])
             return ralcp_list
    
-
-    # a bit inefficient, technically slightly erroneous for agreement thresholds of
-    # less than 0.5 so we assume that it should be above that
-    def ralcp_sort(self, model_output):
-        ralcp_candidates = model_output
-        ref_len = len(model_output)
-        voting_dict = {}
-        idx = 0
-        min_len = len(model_output[0])
-        for i in range(1, len(model_output)):
-            min_len = min(min_len, len(model_output[i]))
-
-        while idx < min_len:
-            
-            # find most commonly agreed upon candidates, heuristic for longest common prefix
-            # can technicall miss the longest common prefix if the agreement threshold is below 0.5
-            for i in range(len(ralcp_candidates)):
-                if ralcp_candidates[i][idx] not in voting_dict.keys():
-                    voting_dict[ralcp_candidates[i][idx]] = [i]
-                else:
-                    voting_dict[ralcp_candidates[i][idx]].append(i)
-           
-            # find the top line of agreement, part of heuristic. we assume thresholds of 0.5 or
-            # higher, to ensure that only one agreement line is possible
-            top_opt = 0
-            top_votes = len(voting_dict[ralcp_candidates[0][idx]])
-            for i in range(1, len(ralcp_candidates)):
-                if top_votes < len(voting_dict[ralcp_candidates[0][idx]]):
-                    top_opt = i
-                    top_votes = len(voting_dict[ralcp_candidates[0][idx]])
-
-            # check to make sure agreement threshold is met
-            if float(top_votes / ref_len) > self.ralcp_thresh:
-                temp_list = []
-                for indx in voting_dict[ralcp_candidates[top_opt][idx]]:
-                    temp_list.append(model_output[indx])
-                model_output = temp_list
-
-                if len(model_output) == 1:
-                    return model_output
-
-            else:
-                model_output = model_output[0]
-                #print(model_output)
-                return model_output
-            
-            idx += 1
-            voting_dict = {}
-            ralcp_candidates = model_output
-
-        return model_output[0]

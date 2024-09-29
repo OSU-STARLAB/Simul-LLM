@@ -138,7 +138,7 @@ collator to handle our data better. Example sentence at start of wait-3 translat
 def formatting_func(example, source_lang, target_lang):
     output_texts = []
     for i in range(len(example['current_source'])):
-        text = f"<|start_header_id|>user<|end_header_id|>\n Given the {source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <|start_header_id|>assistant<|end_header_id|>\n {{{example['target_token'][i]}}}"
+        text = f"<|start_header_id|>user<|end_header_id|>\nGiven the {source_lang} sentence {{{example['current_source'][i]}}} and the current translation in {target_lang} {{{example['current_target'][i]}}}, what's the next translated word? <|start_header_id|>assistant<|end_header_id|>\n{{{example['target_token'][i]}}}"
         output_texts.append(text)
     return output_texts 
 
@@ -146,7 +146,7 @@ def formatting_func(example, source_lang, target_lang):
 def formatting_func_nmt(example, source_lang, target_lang, source, target):
     output_texts = []
     for i in range(len(example[source])):
-        text = f"<|start_header_id|>user<|end_header_id|>\n Translate from {source_lang} to {target_lang}: {{{example[source][i]}}} <|start_header_id|>assistant<|end_header_id|>\n {example[target][i]} <|end_of_text|>"
+        text = f"<|start_header_id|>user<|end_header_id|>\nTranslate from {source_lang} to {target_lang}: {{{example[source][i]}}} <|start_header_id|>assistant<|end_header_id|>\n{example[target][i]} <|end_of_text|>"
         output_texts.append(text)
     return output_texts
 
