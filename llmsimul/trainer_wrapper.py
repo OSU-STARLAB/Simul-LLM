@@ -37,6 +37,8 @@ class LLMSimulSFTTrainerWrapper:
 
         if self.source == "en":
             self.source_lang = "English"
+        elif self.source == "es":
+            self.source_lang = "Spanish"
         elif self.source == "de":
             self.source_lang = "German"
         elif self.source == "fr":
@@ -50,6 +52,8 @@ class LLMSimulSFTTrainerWrapper:
 
         if self.target == "en":
             self.target_lang = "English"
+        elif self.target == "es":
+            self.target_lang = "Spanish"
         elif self.target == "de":
             self.target_lang = "German"
         elif self.target == "fr":
@@ -62,7 +66,7 @@ class LLMSimulSFTTrainerWrapper:
             self.target_lang = "Italian"
 
         assert self.source != self.target, "Source and target languages should not be the same."
-        
+       
         if not self.peft:
             PartialState().print(f"Warning: PEFT-LoRA is set to {self.peft}, indicating full model fine-tuning is desirable. This is not recommended for most hardware setups.")
         

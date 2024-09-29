@@ -85,7 +85,7 @@ class LlamaSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def setup_trainer(self, args):
         self.load_dataset()
 
-        response_template = "<a>:"
+        response_template = "<|start_header_id|>assistant<|end_header_id|>\n"
         collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=self.tokenizer)
         
         formatting = partial(formatting_func, source_lang=self.source_lang, target_lang=self.target_lang) 
