@@ -37,6 +37,8 @@ class LLMSimulSFTTrainerWrapper:
 
         if self.source == "en":
             self.source_lang = "English"
+        elif self.source == "es":
+            self.source_lang = "Spanish"
         elif self.source == "de":
             self.source_lang = "German"
         elif self.source == "fr":
@@ -50,6 +52,8 @@ class LLMSimulSFTTrainerWrapper:
 
         if self.target == "en":
             self.target_lang = "English"
+        elif self.target == "es":
+            self.target_lang = "Spanish"
         elif self.target == "de":
             self.target_lang = "German"
         elif self.target == "fr":
