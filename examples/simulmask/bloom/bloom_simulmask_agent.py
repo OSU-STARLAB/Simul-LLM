@@ -6,15 +6,15 @@ import os
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig
 
-from examples.simulmask.falcon_simulmt_model import FalconForCausalLMSimulMT
+from examples.simulmask.bloom.bloom_simulmt_model import BloomForCausalLMSimulMT
 
-from examples.simulmask.falcon_stopping_criteria import StopTokenCriteria
+from examples.simulmask.simulmask_stopping_criteria import StopTokenCriteria
 import random
 import sys
 sys.setrecursionlimit(1500)
 
 @entrypoint
-class FalconSimulMaskTextAgent(TextToTextAgent):
+class BloomSimulMaskTextAgent(TextToTextAgent):
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.waitk = args.waitk
@@ -68,7 +68,7 @@ class FalconSimulMaskTextAgent(TextToTextAgent):
         #self.tokenizer.pad_token = self.tokenizer.eos_token
 
         prompt1 = f"Translate the following sentence from {self.source_lang} to {self.target_lang}:"
-        prompt2 = "\nAssistant:"
+        prompt2 = "#\nAssistant:"
 
         if self.quantize_4bits:
             if self.device == "cuda":
@@ -78,7 +78,8 @@ class FalconSimulMaskTextAgent(TextToTextAgent):
                     bnb_4bit_compute_dtype=args.compute_dtype,
                     bnb_4bit_use_double_quant=args.use_nested_quant,
                 )
-                self.model = FalconForCausalLMSimulMT.from_pretrained(
+                
+                self.model = BloomForCausalLMSimulMT.from_pretrained(
                     args.model,
                     quantization_config=self.bnb_config,     
                     device_map=self.device,
@@ -93,7 +94,7 @@ class FalconSimulMaskTextAgent(TextToTextAgent):
                 print("BitsAndBytes seemingly only supports deep quantization for GPUs. Try loading the model in a reduced precision format, such as float16.")
         
         else:
-            self.model = FalconForCausalLMSimulMT.from_pretrained(
+            self.model = BloomForCausalLMSimulMT.from_pretrained(
                 args.model,
                 device_map=self.device,
                 torch_dtype=self.compute_dtype,
@@ -147,7 +148,7 @@ class FalconSimulMaskTextAgent(TextToTextAgent):
             current_target = " ".join(self.states.target)
 
             if self.decoding_strategy == "greedy":
-                complete_prompt = f"Translate the following sentence from {self.source_lang} to {self.target_lang}: {current_source} \nAssistant:"
+                complete_prompt = f"Translate the following sentence from {self.source_lang} to {self.target_lang}: {current_source}#\nAssistant:"
 
                 if self.prev_source_count < len(self.states.source):
                     partial_prompt = f"Translate the following sentence from {self.source_lang} to {self.target_lang}: {current_source}"

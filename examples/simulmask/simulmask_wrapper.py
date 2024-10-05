@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer
-from .falcon_simulmt_model import FalconForCausalLMSimulMT
+from .falcon.falcon_simulmt_model import FalconForCausalLMSimulMT
+from .bloom.bloom_simulmt_model import BloomForCausalLMSimulMT
 from peft import LoraConfig
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from argparse import ArgumentParser, Namespace
@@ -13,7 +14,7 @@ via SFTTrainer. This extends from LLMSimulSFTTrainerWrapper and implements remai
 unimplemented behavior from the parent wrapper.
 '''
 
-class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
+class SimulMaskSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
     def __init__(self, args: Namespace):
         super().__init__(args)
         self.resume_from_checkpoint = args.resume_from_checkpoint
@@ -55,20 +56,37 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
         
         #English to German
         prompt1 = f"Translate the following sentence from {self.source_lang} to {self.target_lang}:"
-        prompt2 = "\nAssistant:"
-        self.model = FalconForCausalLMSimulMT.from_pretrained(
-            self.model_name,
-            quantization_config=self.bnb_config if self.bnb else None,
-            device_map="auto",
-            torch_dtype="auto",
-            trust_remote_code=True,
-            tokenizer=self.tokenizer, 
-            waitk=args.waitk, 
-            attmask_type=args.attmask_type, 
-            no_pos=args.no_pos,
-            old_alibi=args.old_alibi,
-            prompt1=prompt1, prompt2=prompt2
-        )
+        if "falcon" in self.model_name:
+            prompt2 = "\nAssistant:"
+            self.model = FalconForCausalLMSimulMT.from_pretrained(
+                self.model_name,
+                quantization_config=self.bnb_config if self.bnb else None,
+                device_map="auto",
+                torch_dtype="auto",
+                trust_remote_code=True,
+                tokenizer=self.tokenizer, 
+                waitk=args.waitk, 
+                attmask_type=args.attmask_type, 
+                no_pos=args.no_pos,
+                old_alibi=args.old_alibi,
+                prompt1=prompt1, prompt2=prompt2
+            )
+        else:
+            prompt2 = "#\nAssistant:"
+            self.model = BloomForCausalLMSimulMT.from_pretrained(
+                self.model_name,
+                quantization_config=self.bnb_config if self.bnb else None,
+                device_map="auto",
+                torch_dtype="auto",
+                trust_remote_code=True,
+                tokenizer=self.tokenizer, 
+                waitk=args.waitk, 
+                attmask_type=args.attmask_type, 
+                no_pos=args.no_pos,
+                old_alibi=args.old_alibi,
+                prompt1=prompt1, prompt2=prompt2
+            )
+    
         self.model.resize_token_embeddings(len(self.tokenizer))
  
  
@@ -90,9 +108,12 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
             self.model.load_adapter(args.adapter_path)
 
         self.waitk = args.waitk
-
-        formatting = partial(formatting_func, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target) 
-
+        
+        if "falcon" in args.model:
+            formatting = partial(formatting_func_falcon, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target) 
+        else:
+            formatting = partial(formatting_func_bloom, source_lang=self.source_lang, target_lang=self.target_lang, source=self.source, target=self.target)
+            
         self.trainer = SFTTrainer(
             model=self.model,
             train_dataset=self.training,
@@ -113,11 +134,18 @@ class FalconSFTTrainerWrapper(LLMSimulSFTTrainerWrapper):
 Formatting function takes care of prompt specification for a given LLM and allows the data
 collator to handle our data better. Designed for the IWSLT 2017 dataset (IWSLT/iwslt2017), but can be adapted.
 '''
-
-def formatting_func(example, source_lang, target_lang, source, target):
+def formatting_func_falcon(example, source_lang, target_lang, source, target):
     output_texts = []
     for pair in example['translation']:
         text = f"Translate the following sentence from {source_lang} to {target_lang}: {pair[source]}\nAssistant: {pair[target]}<|endoftext|>"
+        output_texts.append(text)
+        
+    return output_texts 
+
+def formatting_func_bloom(example, source_lang, target_lang, source, target):
+    output_texts = []
+    for pair in example['translation']:
+        text = f"Translate the following sentence from {source_lang} to {target_lang}: {pair[source]}#\nAssistant: {pair[target]}<|endoftext|>"
         output_texts.append(text)
         
     return output_texts 
