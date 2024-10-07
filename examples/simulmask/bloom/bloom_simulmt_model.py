@@ -110,7 +110,7 @@ class BloomModelSimulMT(BloomModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.Tensor, ...], BaseModelOutputWithPastAndCrossAttentions]:
-        output_attentions = output_attentions if output_attentions is not None  else self.config.output_attentions
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -128,38 +128,39 @@ class BloomModelSimulMT(BloomModel):
 
         if past_key_values is None:
             past_key_values = tuple([None] * len(self.h))
-        else:
-            past_key_values = self._convert_to_rw_cache(past_key_values)
 
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head
         # attention_probs has shape batch_size x num_heads x N x N
         # head_mask has shape n_layer x batch x num_heads x N x N
-        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+        head_mask = self.get_head_mask(head_mask, self.config.n_layer)
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
 
-        hidden_states = inputs_embeds
+        hidden_states = self.word_embeddings_layernorm(inputs_embeds)
 
         presents = () if use_cache else None
         all_self_attentions = () if output_attentions else None
         all_hidden_states = () if output_hidden_states else None
 
-        # Compute alibi tensor: check build_alibi_tensor documentation
+        if self.gradient_checkpointing and self.training:
+            if use_cache:
+                logger.warning_once(
+                    "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
+                )
+                use_cache = False
+
+         # Compute alibi tensor: check build_alibi_tensor documentation
+        seq_length_with_past = seq_length
         past_key_values_length = 0
         if past_key_values[0] is not None:
-            past_key_values_length = past_key_values[0][0].shape[1]  # 1 because RW-cache, not standard format
+            past_key_values_length = past_key_values[0][0].shape[2]
+            seq_length_with_past = seq_length_with_past + past_key_values_length
         if attention_mask is None:
-            attention_mask = torch.ones((batch_size, seq_length + past_key_values_length), device=hidden_states.device)
-            padding_mask = None
+            attention_mask = torch.ones((batch_size, seq_length_with_past), device=hidden_states.device)
         else:
             attention_mask = attention_mask.to(hidden_states.device)
-
-            if 0 in attention_mask:
-                padding_mask = attention_mask
-            else:
-                padding_mask = None
 
         causal_mask = self._prepare_attn_mask(
             attention_mask,
@@ -384,7 +385,7 @@ class BloomForCausalLMSimulMT(BloomForCausalLM, BloomPreTrainedModel):
                 if back_track_kv:
                     past_key_values = []
                     for key, val in outputs.past_key_values:
-                        past_key_values.append((key[:, :, :-1], val[:, :, :-1]))
+                        past_key_values.append((key[:, :, :-1], val[:, :-1]))
                     outputs.past_key_values = tuple(past_key_values)
                 break
 

@@ -298,7 +298,7 @@ class BloomSimulMaskTextAgent(TextToTextAgent):
         pred_keys_values = []
         for pred, recompute in zip(self.pred_past_key_values, recompute_pred):
             key = torch.cat((recompute[0], pred[0][:, :, recompute[0].size(2):]), dim=2)
-            val = torch.cat((recompute[1], pred[1][:, :, recompute[1].size(2):]), dim=2)
+            val = torch.cat((recompute[1], pred[1][:, recompute[1].size(2):]), dim=2)
             pred_keys_values.append((key, val))
         assert pred_keys_values[0][0].size() == self.pred_past_key_values[0][0].size()
         return tuple(pred_keys_values)
@@ -306,7 +306,7 @@ class BloomSimulMaskTextAgent(TextToTextAgent):
     def merge_pred_prompt(self):
         merge_keys_values = []
         for pred, prompt in zip(self.pred_past_key_values, self.prompt_past_key_values):
-            merge_keys_values.append((torch.cat((prompt[0], pred[0]), dim=2), torch.cat((prompt[1], pred[1]), dim=2)))
+            merge_keys_values.append((torch.cat((prompt[0], pred[0]), dim=2), torch.cat((prompt[1], pred[1]), dim=1)))
         return tuple(merge_keys_values)
 
     def separate_pred_prompt(self, past_key_values):
@@ -315,7 +315,7 @@ class BloomSimulMaskTextAgent(TextToTextAgent):
         prompt_size = self.prompt_past_key_values[0][0].size()[2]
         pred_size = past_key_values[0][0].size()[2] - prompt_size 
         for key, val in past_key_values:
-            pred_keys_values.append((key[:, :, prompt_size:prompt_size+pred_size, :], val[:, :, prompt_size:prompt_size+pred_size, :]))
-            prompt_keys_values.append((key[:, :, :prompt_size, :], val[:, :, :prompt_size, :]))
+            pred_keys_values.append((key[:, :, prompt_size:prompt_size+pred_size], val[:, prompt_size:prompt_size+pred_size]))
+            prompt_keys_values.append((key[:, :, :prompt_size], val[:, :prompt_size]))
         assert tuple(pred_keys_values)[0][0].size(2) + tuple(prompt_keys_values)[0][0].size(2) == past_key_values[0][0].size(2)
         return tuple(pred_keys_values), tuple(prompt_keys_values)
