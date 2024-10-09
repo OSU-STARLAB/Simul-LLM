@@ -128,10 +128,10 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--lr-scheduler", type=str, default="constant")
         parser.add_argument("--max-grad-norm", type=float, default=0.3)
         parser.add_argument("--warmup-ratio", type=float, default=0.03)
-        parser.add_argument("--save-interval", type=int, default=500)
+        parser.add_argument("--save-interval", type=int, default=1000)
         parser.add_argument("--log-interval", type=int, default=100)
         parser.add_argument("--eval-interval", type=int, default=500)
-        parser.add_argument("--max-updates", type=int, default=100000)
+        parser.add_argument("--max-updates", type=int, default=-1)
         parser.add_argument("--max-seq-length", type=int, default=1024)
 
         parser.add_argument("--source-lang", type=str, default="en")

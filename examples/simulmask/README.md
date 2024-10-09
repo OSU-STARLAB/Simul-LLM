@@ -54,18 +54,18 @@ The LLM Fine-tuned with SimulMask outperforms or matches alternative approaches 
 
 | English-French | English-Dutch  | English-Italian  |
 |---------|---------|---------|
-| ![English-French](Figures/en-fr.png) | ![English-Dutch](Figures/en-nl.png) | ![English-Italian](Figures/en-it.png) |
+| ![English-French](figures/en-fr.png) | ![English-Dutch](figures/en-nl.png) | ![English-Italian](figures/en-it.png) |
 
 ---
 ### Computational Saving Results
 
 Fine-tuning an LLM with SimulMask reduces training time compared to alternative approaches.
 
-<img src="Figures/training_computation.png" alt="training" width="350"> 
+<img src="figures/training_computation.png" alt="training" width="350"> 
 
 The LLM fine-tuned with SimulMask performs inference at a reduced computational cost compared to alternative approaches.
 
-<img src="Figures/inference_computation.png" alt="inference" width="350"> 
+<img src="figures/inference_computation.png" alt="inference" width="350"> 
 
 ---
 
