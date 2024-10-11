@@ -30,6 +30,7 @@ The Falcon model checkpoints fine-tuned at wait-9 and evaluated at wait-5 are pr
 
 ---
 
+
 A Bloomz model checkpoint fine-tuned at wait-7 and evaluated at wait-3 is provided below.
 | en-fr |
 | ----- |
@@ -64,6 +65,7 @@ The LLM Fine-tuned with SimulMask outperforms or matches alternative approaches 
 | English-German | English-Romanian  |
 |---------|---------|
 | <img src="figures/en-de.png" width="300px"> | <img src="figures/en-ro.png" width="300px"> |
+
 ---
 ### Computational Saving Results
 

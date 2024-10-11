@@ -1,6 +1,6 @@
 # Simul-LLM
 
-Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to text-to-text simultaneous machine translation (SimulMT). It currently supports Falcon and Mistral-based models with some support for Llama-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
+Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to simultaneous machine translation (SimulMT). It currently supports Falcon and Mistral-based models with some support for Llama-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
 
 To work with framework and replicate the environment it was initially constructed in, clone recursively and do the following. 
 
@@ -12,7 +12,7 @@ pip install -e .
 
 Some example fine-tuning datasets are provided on the HuggingFace Hub under `maxolotl/.`
 
-Example scripts are provided via `scripts/` with default arguments being set-up for a fully sharded Falcon 7B model on relatively low-end hardware. To extend this framework to other LLMs, it's recommended that the setup within `llmsimul/falcon/` be copied. 
+Example scripts are provided via `scripts/` with default arguments being set-up for a fully sharded Falcon 7B model on relatively low-end hardware. To extend this framework to other LLMs, it's recommended that the setup within [`llmsimul/falcon/`](llmsimul/falcon) be copied. 
 
 A few PEFT LoRA checkpoints are provided here for Falcon-based models. 
 
@@ -23,6 +23,15 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 
 ---
 
+### What's New?
+
+- September 2024: SimulMask is accepted to EMNLP '24, hosted in Miami, Florida!
+- September 2024: Example simultaneous speech-to-text translation (SimulST) pipeline available [here](examples/basic_speech_to_text).
+- August 2024: Official implementation of SimulMask available [here](examples/simulmask)! Preprint for Simulmask available [here](https://arxiv.org/abs/2405.10443).
+- May 2024: Simul-LLM is accepted to ACL '24, hosted in Bangkok, Thailand!
+
+---
+
 ### To-Do/Wish List
 
 1. Add support for more custom tailoring of "computationally aware" MT latency. 
@@ -30,7 +39,7 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 3. ~~Add support for easy to swap out translation scheduling. While not difficult in the project's current form, the process of swapping schedules could be rendered essentially seamless with a bit of additional work.~~
 4. Finish validating Llama examples.
 5. ~~Finish adding some extra ``accelerate`` support to ensure access to more interesting DP paradigms.~~
-6. Add multi-modal options/support for SimulST possibilities.
+6. ~~Add multi-modal options/support for SimulST possibilities.~~
 
 ---
 
@@ -38,13 +47,11 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 
 The structure of this repository is meant to be friendly to attempts to extend its functionality to new LLMs. The following general steps can be executed to enable fine-tuning and evaluation via SimulEval:
 
-1. Add some parsing infrastructure to `cli/finetune.py`.
+1. Add some parsing infrastructure to [`cli/finetune.py`](cli/finetune.py).
 
-2. Create a SFTTrainer wrapper for a new LLM by inheriting from the general wrapper found in `llmsimul/trainer_wrapper.py` and implementing the remaining functions.
+2. Create a SFTTrainer wrapper for a new LLM by inheriting from the general wrapper found in [`llmsimul/trainer_wrapper.py`](llmsimul/trainer_wrapper.py) and implementing the remaining functions.
 
 3. Create an evaluation agent for SimulEval, copying typical text-to-text agent structure.
-
-When in doubt, those attempting to extend this repo's functionality to new LLMs are encouraged to refer to `llmsimul/falcon/` as a reference point.
 
 ---
 
