@@ -21,7 +21,7 @@ def main():
         from examples.simulmask.simulmask_wrapper import SimulMaskSFTTrainerWrapper
         SimulMaskSFTTrainerWrapper.add_args(parser)
         trainer = SimulMaskSFTTrainerWrapper(parser.parse_args())
-        PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+        PartialState().print(f"Successfully loaded SimulMask fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
      
     if "falcon" in llm.model.lower():
         PartialState().print(f"Identified Falcon as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
