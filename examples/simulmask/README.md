@@ -23,12 +23,18 @@ python cli/finetune.py \
     --output-dir ${checkpoint_save_path} \
 ```
 
-The model checkpoints fine-tuned at wait-9 and evaluated at wait-5 are provided below.
+The Falcon model checkpoints fine-tuned at wait-9 and evaluated at wait-5 are provided below.
 | en-fr | en-nl | en-it |
 | ----- | ----- | ----- |
 | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-fr) | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-nl) | [falcon-chkpt](https://huggingface.co/raffelm/falcon-simulmask-en-it) |
 
 ---
+
+
+A Bloomz model checkpoint fine-tuned at wait-7 and evaluated at wait-3 is provided below.
+| en-fr |
+| ----- |
+| [bloomz-chkpt](https://huggingface.co/raffelm/bloomz-simulmask-en-fr)
 
 ## Evaluation
 The script used to evaluate a fine-tuned falcon-1.3B model is provided below.
@@ -54,18 +60,22 @@ The LLM Fine-tuned with SimulMask outperforms or matches alternative approaches 
 
 | English-French | English-Dutch  | English-Italian  |
 |---------|---------|---------|
-| ![English-French](Figures/en-fr.png) | ![English-Dutch](Figures/en-nl.png) | ![English-Italian](Figures/en-it.png) |
+| <img src="figures/en-fr.png" width="300px"> | <img src="figures/en-nl.png" width="300px"> | <img src="figures/en-it.png" width="300px"> |
+
+| English-German | English-Romanian  |
+|---------|---------|
+| <img src="figures/en-de.png" width="300px"> | <img src="figures/en-ro.png" width="300px"> |
 
 ---
 ### Computational Saving Results
 
 Fine-tuning an LLM with SimulMask reduces training time compared to alternative approaches.
 
-<img src="Figures/training_computation.png" alt="training" width="350"> 
+<img src="figures/training_computation.png" alt="training" width="350"> 
 
 The LLM fine-tuned with SimulMask performs inference at a reduced computational cost compared to alternative approaches.
 
-<img src="Figures/inference_computation.png" alt="inference" width="350"> 
+<img src="figures/inference_computation.png" alt="inference" width="350"> 
 
 ---
 

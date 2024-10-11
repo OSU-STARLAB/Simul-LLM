@@ -17,15 +17,16 @@ def main():
     llm, _ = model_parser().parse_known_args(sys.argv[1:])
     parser = argparse.ArgumentParser()
 
+    if llm.user_dir == "examples/simulmask":
+        from examples.simulmask.simulmask_wrapper import SimulMaskSFTTrainerWrapper
+        SimulMaskSFTTrainerWrapper.add_args(parser)
+        trainer = SimulMaskSFTTrainerWrapper(parser.parse_args())
+        PartialState().print(f"Successfully loaded SimulMask fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+     
     if "falcon" in llm.model.lower():
         PartialState().print(f"Identified Falcon as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
         if llm.user_dir is None:
             from llmsimul.falcon.falcon_wrapper import FalconSFTTrainerWrapper
-            FalconSFTTrainerWrapper.add_args(parser)
-            trainer = FalconSFTTrainerWrapper(parser.parse_args())
-            PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
-        elif llm.user_dir == "examples/simulmask":
-            from examples.simulmask.falcon_wrapper import FalconSFTTrainerWrapper
             FalconSFTTrainerWrapper.add_args(parser)
             trainer = FalconSFTTrainerWrapper(parser.parse_args())
             PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
@@ -44,7 +45,7 @@ def main():
         trainer = MistralSFTTrainerWrapper(parser.parse_args())
         PartialState().print(f"Successfully loaded Mistral fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
 
-    else:
+    elif llm.user_dir is None:
         PartialState().print("=" * 75)
         PartialState().print("Either a valid model was not provided or some infrastructure is missing.")
         PartialState().print("=" * 75)
