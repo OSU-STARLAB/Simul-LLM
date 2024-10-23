@@ -31,11 +31,15 @@ def main():
             PartialState().print(f"Successfully loaded Falcon fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
 
     elif "llama" in llm.model.lower():
-        PartialState().print(f"Identified LLaMA as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
-        from llmsimul.llama.llama_wrapper import LlamaSFTTrainerWrapper
+        PartialState().print(f"Identified Llama3 as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
+
+        if "llama2" in llm.model.lower():
+            PartialState().print(f"WARNING: Intended for use with Llama3 family, detected Llama2.", flush=True)
+
+        from llmsimul.llama3.llama3_wrapper import LlamaSFTTrainerWrapper
         LlamaSFTTrainerWrapper.add_args(parser)
         trainer = LlamaSFTTrainerWrapper(parser.parse_args())
-        PartialState().print(f"Successfully loaded LLaMA fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+        PartialState().print(f"Successfully loaded Llama3 fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
         
     elif "mistral" in llm.model.lower():
         PartialState().print(f"Identified Mistral as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)

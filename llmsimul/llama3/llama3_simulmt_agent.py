@@ -12,7 +12,7 @@ from transformers import LlamaForCausalLM
 from peft import LoraConfig, AutoPeftModelForCausalLM
 
 from transformers.generation.stopping_criteria import StoppingCriteria
-from llmsimul.llama.llama_stopping_criteria import StopTokenAndMaxLengthCriteria
+from llmsimul.llama3.llama3_stopping_criteria import StopTokenAndMaxLengthCriteria
 
 from llmsimul.schedulers.waitk import WaitkScheduler
 
@@ -21,7 +21,7 @@ from llmsimul.utils_and_misc.beam_rescoring import ralcp_sort, rescoring_add_arg
 from llmsimul.basic_eval_agent import BasicLLMTextAgent
 
 @entrypoint
-class LlamaTextAgent(BasicLLMTextAgent):
+class Llama3TextAgent(BasicLLMTextAgent):
 
     source_type: str = "comp-text"
     target_type: str = "text"
@@ -99,8 +99,6 @@ class LlamaTextAgent(BasicLLMTextAgent):
         if current_translation is None:
             current_translation = ' '
 
-        # unclear if llama models really require specific "human" and "assistant" tokens/setup, seem to perform
-        # fine regardless of these values
         if self.nmt_prompt and not self.nmt_augment:
             input_prompt = f'<|start_header_id|>user<|end_header_id|>\nTranslate from {self.source_lang} to {self.target_lang}: {{{source}}} <|start_header_id|>assistant<|end_header_id|>\n{current_translation}'
         elif self.nmt_prompt and self.nmt_augment:
