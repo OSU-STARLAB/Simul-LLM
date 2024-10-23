@@ -135,7 +135,9 @@ class BasicLLMTextAgent(TextToTextAgent):
         raise NotImplementedError
 
 
-    # determines READ/WRITE behavior, implemented here as behavior SHOULD be consistent
+    """
+        Policy determines READ/WRITE behavior, implemented here as behavior SHOULD be consistent
+    """
     def policy(self):
         lagging = len(self.states.source) - len(self.states.target)
         current_source = " ".join(self.states.source)
@@ -232,7 +234,7 @@ class BasicLLMTextAgent(TextToTextAgent):
 
 
     """
-    Required for multiple consecutive translation decisions during Speculative Beam Search.
+        Required for multiple consecutive translation decisions during Speculative Beam Search.
     """
     def buffer_commit(self, current_source, current_target, lagging):
         # prediction management with write buffer
