@@ -12,8 +12,7 @@ python cli/finetune.py \
     --model tiiuae/falcon-rw-1b \
     --training-set iwslt2017 --training-subset iwslt2017-en-fr \
     --source-lang en --target-lang fr \
-    --lora-alpha 16 --lora-dropout 0.1 --lora-r 64 \
-    --use-4bit --bnb-4bit-compute-dtype bfloat16 --bnb-4bit-quant-type nf4 \
+    --bnb-4bit-compute-dtype bfloat16 \
     --bsz 16 --update-freq 4 \
     --optim paged_adamw_32bit --lr 2e-4 --lr-scheduler inverse_sqrt --weight-decay 0.1 \
     --warmup-ratio 0.03 --max-grad-norm 1 \
