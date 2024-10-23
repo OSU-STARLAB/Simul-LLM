@@ -138,21 +138,17 @@ class LlamaTextAgent(BasicLLMTextAgent):
                 #no_repeat_ngram_size=1,
             )
 
-        top_output = self.tokenizer.decode(outputs[0])
-        
         all_output = []
         for i in range(return_seq):
             all_output.append(self.tokenizer.decode(outputs[i]))
-        #all_output = self.tokenizer.decode(outputs)
-        #print(all_output)
 
         # Slice the returned array to remove the input that we fed the model
-        # offset of 5 is to account for BOS in Llama and Llama
+        # offset of 17 is to account for additions to prompt in output
         if not self.rescorer == "ralcp":
-            return all_output[0][len(input_prompt) + 5:]
+            return all_output[0][len(input_prompt) + 17:]
         else:
             ralcp_list = []
             for i in range(return_seq):
-                ralcp_list.append(all_output[i][len(input_prompt) + 5:])
+                ralcp_list.append(all_output[i][len(input_prompt) + 17:])
             return ralcp_list
    
