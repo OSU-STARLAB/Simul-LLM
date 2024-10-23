@@ -49,6 +49,8 @@ class LLMSimulSFTTrainerWrapper:
             self.source_lang = "Romanian"
         elif self.source == "it":
             self.source_lang = "Italian"
+        elif self.source == "ko":
+            self.source_lang = "Korean"
 
         if self.target == "en":
             self.target_lang = "English"
@@ -64,6 +66,8 @@ class LLMSimulSFTTrainerWrapper:
             self.target_lang = "Romanian"
         elif self.target == "it":
             self.target_lang = "Italian"
+        elif self.target == "ko":
+            self.target_lang = "Korean"
 
         assert self.source != self.target, "Source and target languages should not be the same."
        
@@ -130,6 +134,7 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--optim", type=str, default="paged_adamw_32bit")
         parser.add_argument("--lr", type=float, default=2e-4)
         parser.add_argument("--lr-scheduler", type=str, default="constant")
+        parser.add_argument("--weight-decay", type=float, default=0)
         parser.add_argument("--max-grad-norm", type=float, default=0.3)
         parser.add_argument("--warmup-ratio", type=float, default=0.03)
         parser.add_argument("--save-interval", type=int, default=1000)
@@ -193,6 +198,7 @@ class LLMSimulSFTTrainerWrapper:
             max_grad_norm=args.max_grad_norm,
             warmup_ratio=args.warmup_ratio,
             lr_scheduler_type=args.lr_scheduler,
+            weight_decay=args.weight_decay,
             evaluation_strategy="steps",
             eval_steps=args.eval_interval,
             group_by_length=True,
