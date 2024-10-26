@@ -61,7 +61,7 @@ def make_mask_batch(input_ids, att_len, device, p1_len, p2_len, tokenizer, waitk
 
         att_mask_list = []
         for len_dict in len_dict_list:
-            att_mask = make_simul_mask(len_dict, att_len, waitk, device)
+            att_mask = make_simul_mask(len_dict, att_len, waitk, device, p1_len, p2_len)
             att_mask_list.append(att_mask)
         
         batch_att_mask = torch.stack(att_mask_list)[:, None, :, :]
@@ -71,12 +71,12 @@ def make_mask_batch(input_ids, att_len, device, p1_len, p2_len, tokenizer, waitk
 """
 A helper function for constructing the simulmask.
 """
-def create_uni_tri(len_dict, waitk_num, device):
-    s_len, t_len, s_word_lens, t_word_lens, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['s_word_lens'], len_dict['t_word_lens'], len_dict['waitk']
+def create_uni_tri(len_dict, waitk, device):
+    s_len, t_len, s_word_lens, t_word_lens, waitk_tok = len_dict['s_len'], len_dict['t_len'], len_dict['s_word_lens'], len_dict['t_word_lens'], len_dict['waitk']
     tri_mask = torch.zeros((t_len, s_len), dtype=torch.bool, device=device)
     vert_pos = 0
-    horz_pos = waitk
-    for s_word_len, t_word_len in zip(s_word_lens[waitk_num:], t_word_lens):
+    horz_pos = waitk_tok
+    for s_word_len, t_word_len in zip(s_word_lens[waitk:], t_word_lens):
         if vert_pos + t_word_len > t_len or horz_pos+s_word_len > s_len:
             break
         tri_mask[vert_pos:vert_pos+t_word_len, horz_pos:] = torch.ones(t_word_len, s_len-horz_pos, dtype=torch.bool, device=device)
@@ -87,21 +87,21 @@ def create_uni_tri(len_dict, waitk_num, device):
 """
 Creates a simulmask for a single batch.
 """
-def make_simul_mask(len_dict, att_len, waitk_num, device, p1_len=0, p2_len=0):
-    s_len, t_len, waitk = len_dict['s_len'], len_dict['t_len'], len_dict['waitk']
+def make_simul_mask(len_dict, att_len, waitk, device, p1_len=0, p2_len=0):
+    s_len, t_len, waitk_tok = len_dict['s_len'], len_dict['t_len'], len_dict['waitk']
     mask1_pos = p1_len
     mask2_pos = mask1_pos + s_len + p2_len
 
     att_mask = torch.triu(torch.ones((att_len, att_len), dtype=torch.bool, device=device), diagonal=1)
     
-    if waitk < s_len and t_len != 0:
+    if waitk_tok < s_len and t_len != 0:
         #Creates the attention mask for the target queries and source keys
-        tri_mask = create_uni_tri(len_dict, waitk_num, device)
+        tri_mask = create_uni_tri(len_dict, waitk, device)
         att_mask[mask2_pos-1:mask2_pos+t_len-1, mask1_pos:mask1_pos+s_len] = tri_mask
 
         #Prevent prompt 2 from attending to source
         if p2_len > 1:
-            att_mask[mask1_pos+s_len:mask2_pos-1, mask1_pos+waitk:mask1_pos+s_len] = torch.ones((p2_len-1, s_len-waitk), dtype=torch.bool, device=device)
+            att_mask[mask1_pos+s_len:mask2_pos-1, mask1_pos+waitk_tok:mask1_pos+s_len] = torch.ones((p2_len-1, s_len-waitk_tok), dtype=torch.bool, device=device)
     
     return att_mask
 
