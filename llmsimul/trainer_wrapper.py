@@ -139,13 +139,16 @@ class LLMSimulSFTTrainerWrapper:
         parser.add_argument("--warmup-ratio", type=float, default=0.03)
         parser.add_argument("--save-interval", type=int, default=1000)
         parser.add_argument("--log-interval", type=int, default=100)
-        parser.add_argument("--eval-interval", type=int, default=500)
-        parser.add_argument("--max-updates", type=int, default=-1)
+        parser.add_argument("--eval-interval", type=int, default=1000)
+        parser.add_argument("--max-updates", type=int, default=10000)
         parser.add_argument("--max-seq-length", type=int, default=1024)
 
         parser.add_argument("--source-lang", type=str, default="en")
         parser.add_argument("--target-lang", type=str, default="es")
-        parser.add_argument("--save-strategy", type=str, default="epoch")
+        parser.add_argument("--save-strategy", type=str, default="steps")
+        parser.add_argument("--eval-strategy", type=str, default="steps")
+        parser.add_argument("--logging-strategy", type=str, default="steps")
+
         parser.add_argument("--num-train-epochs", type=int, default=1)
         parser.add_argument("--training-subset", type=str, required=False, default="",
             help="Path to dataset subset you want to use, currently only works with datasets on Huggingface Hub.",
@@ -192,6 +195,10 @@ class LLMSimulSFTTrainerWrapper:
             gradient_accumulation_steps=args.update_freq,
             optim=args.optim,
             save_steps=args.save_interval,
+            save_strategy=args.save_strategy,
+            eval_strategy=args.eval_strategy,
+            logging_strategy=args.logging_strategy,
+            num_train_epochs=args.num_train_epochs,
             logging_steps=args.log_interval,
             max_steps=args.max_updates,
             learning_rate=args.lr,
