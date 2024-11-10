@@ -49,6 +49,14 @@ def main():
         trainer = MistralSFTTrainerWrapper(parser.parse_args())
         PartialState().print(f"Successfully loaded Mistral fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
 
+    elif "bloom" in llm.model.lower():
+        PartialState().print(f"Identified Bloom as the intended target LLM, attempting to create fine-tuning wrapper...", flush=True)
+        from llmsimul.bloom.bloom_wrapper import BloomSFTTrainerWrapper
+        BloomSFTTrainerWrapper.add_args(parser)
+        trainer = BloomSFTTrainerWrapper(parser.parse_args())
+        PartialState().print(f"Successfully loaded Bloom fine-tuning wrapper. Attempting to begin fine-tuning now...", flush=True)
+
+
     elif llm.user_dir is None:
         PartialState().print("=" * 75)
         PartialState().print("Either a valid model was not provided or some infrastructure is missing.")
