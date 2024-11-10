@@ -1,6 +1,6 @@
 # Simul-LLM
 
-Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to simultaneous machine translation (SimulMT). It currently supports Falcon and Mistral-based models with some support for Llama-based models. You can read our introductory preprint [here](https://arxiv.org/abs/2312.04691).
+Simul-LLM is the first open-source fine-tuning to evaluation pipeline development framework for applying LLMs to simultaneous machine translation (SimulMT). It currently supports Falcon and Mistral-based models with some support for Llama-based models. You can read our introductory preprint [here](https://aclanthology.org/2024.acl-long.567/).
 
 To work with framework and replicate the environment it was initially constructed in, clone recursively and do the following. 
 
@@ -27,7 +27,7 @@ A few PEFT LoRA checkpoints are provided here for Falcon-based models.
 
 - September 2024: SimulMask is accepted to EMNLP '24, hosted in Miami, Florida!
 - September 2024: Example simultaneous speech-to-text translation (SimulST) pipeline available [here](examples/basic_speech_to_text).
-- August 2024: Official implementation of SimulMask available [here](examples/simulmask)! Preprint for Simulmask available [here](https://arxiv.org/abs/2405.10443).
+- August 2024: Official implementation of SimulMask available [here](examples/simulmask)! Preprint for SimulMask available [here](https://arxiv.org/abs/2405.10443).
 - May 2024: Simul-LLM is accepted to ACL '24, hosted in Bangkok, Thailand!
 
 ---
