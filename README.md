@@ -59,6 +59,7 @@ When employing or extending this framework, please consider citing us as:
     address = "Bangkok, Thailand",
     publisher = "Association for Computational Linguistics",
     url = "https://aclanthology.org/2024.acl-long.567",
+    doi = "10.18653/v1/2024.acl-long.567",
     pages = "10530--10541",
 }
 ```
