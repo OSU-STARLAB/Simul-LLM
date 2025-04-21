@@ -83,10 +83,17 @@ The LLM fine-tuned with SimulMask performs inference at a reduced computational 
 When employing or extending SimulMask, please consider citing us as:
 
 ```
-@article{raffel2024simultaneous,
-  title={Simultaneous Masking, Not Prompting Optimization: A Paradigm Shift in Fine-tuning LLMs for Simultaneous Translation},
-  author={Raffel, Matthew and Agostinelli, Victor and Chen, Lizhong},
-  journal={arXiv preprint arXiv:2405.10443},
-  year={2024}
+@inproceedings{raffel-etal-2024-simultaneous,
+    title = "Simultaneous Masking, Not Prompting Optimization: A Paradigm Shift in Fine-tuning {LLM}s for Simultaneous Translation",
+    author = "Raffel, Matthew  and Agostinelli, Victor  and Chen, Lizhong",
+    editor = "Al-Onaizan, Yaser  and Bansal, Mohit  and Chen, Yun-Nung",
+    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2024",
+    address = "Miami, Florida, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.emnlp-main.1017/",
+    doi = "10.18653/v1/2024.emnlp-main.1017",
+    pages = "18302--18314",
 }
 ```
